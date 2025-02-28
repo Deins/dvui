@@ -29,12 +29,14 @@ pub fn build(b: *std.Build) !void {
     };
 
     const dvui_sdl = addDvuiModule(b, target, optimize, link_backend, .sdl, linux_display_backend);
+    //const dvui_sdl3_vk = addDvuiModule(b, target, optimize, link_backend, .sdl3_vulkan, linux_display_backend);
     const dvui_raylib = addDvuiModule(b, target, optimize, link_backend, .raylib, linux_display_backend);
 
     addExample(b, target, optimize, "sdl-standalone", dvui_sdl);
     addExample(b, target, optimize, "sdl-ontop", dvui_sdl);
     addExample(b, target, optimize, "raylib-standalone", dvui_raylib);
     addExample(b, target, optimize, "raylib-ontop", dvui_raylib);
+    //addExample(b, target, optimize, "sdl3-vk-standalone", dvui_sdl3_vk);
 
     if (target.result.os.tag == .windows) {
         const dvui_dx11 = addDvuiModule(b, target, optimize, link_backend, .dx11, linux_display_backend);
@@ -146,6 +148,7 @@ pub fn build(b: *std.Build) !void {
 const Backend = enum {
     raylib,
     sdl,
+    sdl3_vulkan,
     dx11,
 };
 
@@ -181,6 +184,7 @@ fn addDvuiModule(
             .raylib => true,
             .sdl => true,
             .dx11 => true,
+            .sdl3_vulkan => true,
         },
     });
 
@@ -198,6 +202,7 @@ fn addDvuiModule(
     } });
 
     if (link_backend) {
+        const sdl3_from_system = b.systemIntegrationOption("sdl3", .{});
         switch (backend) {
             .raylib => {
                 const maybe_ray = b.lazyDependency(
@@ -260,6 +265,35 @@ fn addDvuiModule(
                     }
                 }
                 backend_mod.addOptions("sdl_options", sdl_options);
+            },
+            .sdl3_vulkan => {
+                dvui_mod.addCSourceFiles(.{ .files = &.{
+                    "src/stb/stb_image_impl.c",
+                } });
+                var sdl_options = b.addOptions();
+                sdl_options.addOption(std.SemanticVersion, "version", .{ .major = 3, .minor = 0, .patch = 0 });
+                if (sdl3_from_system) {
+                    sdl_options.addOption(bool, "from_system", true);
+                    backend_mod.linkSystemLibrary("SDL3", .{});
+                } else {
+                    if (b.lazyDependency("sdl3", .{})) |sdl3| {
+                        backend_mod.linkLibrary(sdl3.artifact("sdl3"));
+                        backend_mod.addImport("sdl3_c", sdl3.module("sdl"));
+                    }
+                }
+                backend_mod.addOptions("sdl_options", sdl_options);
+
+                const vk_registry_opt = b.option([]const u8, "vk_registry", "Path to vulkan registry vk.xml");
+                const vk_registry = vk_registry_opt orelse blk: {
+                    const env = std.process.getEnvMap(b.allocator) catch unreachable;
+                    if (env.get("VULKAN_SDK")) |vk_path| {
+                        break :blk b.pathJoin(&.{ vk_path, "share", "vulkan", "registry", "vk.xml" });
+                    } else @panic("VULKAN_SDK not found. Pass in -Dvk_registry=/path/to/vk.xml or install vulkan SDK.");
+                };
+                if (b.lazyDependency("vulkan_zig", .{ .registry = @as([]const u8, vk_registry) })) |vkzig_dep| {
+                    const vkzig_bindings = vkzig_dep.module("vulkan-zig");
+                    backend_mod.addImport("vulkan", vkzig_bindings);
+                }
             },
             .dx11 => {
                 dvui_mod.addCSourceFiles(.{ .files = &.{

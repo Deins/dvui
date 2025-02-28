@@ -172,10 +172,10 @@ pub fn deinit(self: *CacheWidget) void {
             const px = dvui.currentWindow().arena().alloc(u8, size) catch null;
             if (px) |pixels| {
                 defer dvui.currentWindow().arena().free(pixels);
-                dvui.textureRead(t.texture, pixels.ptr, @intFromFloat(t.size.w), @intFromFloat(t.size.h)) catch unreachable;
+                // dvui.textureRead(t.texture, pixels.ptr, @intFromFloat(t.size.w), @intFromFloat(t.size.h)) catch unreachable;
 
-                dvui.textureDestroyLater(t.texture);
-                t.texture = dvui.textureCreate(pixels.ptr, @intFromFloat(t.size.w), @intFromFloat(t.size.h), .linear);
+                // dvui.textureDestroyLater(t.texture);
+                // t.texture = dvui.textureCreate(pixels.ptr, @intFromFloat(t.size.w), @intFromFloat(t.size.h), .linear);
             }
 
             dvui.dataSet(null, self.wd.id, "_tex_uv", self.tex_uv);

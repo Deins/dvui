@@ -35,5 +35,11 @@
             .hash = "1220cc9c9028e20f4ec2ece1155ae3479acc1cc509f9ab93acb74e8f5bbf8eefd2a9",
             .lazy = true,
         },
+        // required for sdl3-vulkan backend
+        .vulkan_zig = .{
+            .url = "git+https://github.com/Snektron/vulkan-zig.git#5559cccea667a2c159354bdb99cc398c2d893a1b",
+            .hash = "1220ed8dbf35b9391f2d11c984493f80ecef1287bf07c9e29fba967c6912e54bb9b3",
+            .lazy = true,
+        },
     },
 }

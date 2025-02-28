@@ -997,7 +997,7 @@ pub fn pathFillConvex(color: Color) !void {
         v.pos.x = bb.x - halfnorm.x;
         v.pos.y = bb.y - halfnorm.y;
         v.col = col;
-        try vtx.append(v);
+        vtx.appendAssumeCapacity(v);
         bounds.x = @min(bounds.x, v.pos.x);
         bounds.y = @min(bounds.y, v.pos.y);
         bounds.w = @max(bounds.w, v.pos.x);
@@ -1007,7 +1007,7 @@ pub fn pathFillConvex(color: Color) !void {
         v.pos.x = bb.x + halfnorm.x;
         v.pos.y = bb.y + halfnorm.y;
         v.col = col_trans;
-        try vtx.append(v);
+        vtx.appendAssumeCapacity(v);
         bounds.x = @min(bounds.x, v.pos.x);
         bounds.y = @min(bounds.y, v.pos.y);
         bounds.w = @max(bounds.w, v.pos.x);
@@ -1016,19 +1016,19 @@ pub fn pathFillConvex(color: Color) !void {
         // indexes for fill
         // triangles must be counter-clockwise (y going down) to avoid backface culling
         if (i > 1) {
-            try idx.append(@as(u16, @intCast(0)));
-            try idx.append(@as(u16, @intCast(ai * 2)));
-            try idx.append(@as(u16, @intCast(bi * 2)));
+            idx.appendAssumeCapacity(@as(u16, @intCast(0)));
+            idx.appendAssumeCapacity(@as(u16, @intCast(ai * 2)));
+            idx.appendAssumeCapacity(@as(u16, @intCast(bi * 2)));
         }
 
         // indexes for aa fade from inner to outer
         // triangles must be counter-clockwise (y going down) to avoid backface culling
-        try idx.append(@as(u16, @intCast(ai * 2)));
-        try idx.append(@as(u16, @intCast(ai * 2 + 1)));
-        try idx.append(@as(u16, @intCast(bi * 2)));
-        try idx.append(@as(u16, @intCast(ai * 2 + 1)));
-        try idx.append(@as(u16, @intCast(bi * 2 + 1)));
-        try idx.append(@as(u16, @intCast(bi * 2)));
+        idx.appendAssumeCapacity(@as(u16, @intCast(ai * 2)));
+        idx.appendAssumeCapacity(@as(u16, @intCast(ai * 2 + 1)));
+        idx.appendAssumeCapacity(@as(u16, @intCast(bi * 2)));
+        idx.appendAssumeCapacity(@as(u16, @intCast(ai * 2 + 1)));
+        idx.appendAssumeCapacity(@as(u16, @intCast(bi * 2 + 1)));
+        idx.appendAssumeCapacity(@as(u16, @intCast(bi * 2)));
     }
 
     // convert bounds back to normal rect
@@ -1963,7 +1963,7 @@ pub fn dataSetAdvanced(win: ?*Window, id: u32, key: []const u8, data: anytype, c
 /// If you want a pointer to the stored data, use dataGetPtr().
 ///
 /// If you want to get the contents of a stored slice, use dataGetSlice().
-pub fn dataGet(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?T {
+pub inline fn dataGet(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?T {
     if (dataGetInternal(win, id, key, T, false)) |bytes| {
         return @as(*T, @alignCast(@ptrCast(bytes.ptr))).*;
     } else {
@@ -1981,7 +1981,7 @@ pub fn dataGet(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?T {
 /// If you want a pointer to the stored data, use dataGetPtrDefault().
 ///
 /// If you want to get the contents of a stored slice, use dataGetSlice().
-pub fn dataGetDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: T) T {
+pub inline fn dataGetDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: T) T {
     if (dataGetInternal(win, id, key, T, false)) |bytes| {
         return @as(*T, @alignCast(@ptrCast(bytes.ptr))).*;
     } else {
@@ -2004,7 +2004,7 @@ pub fn dataGetDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type,
 /// combination.
 ///
 /// If you want to get the contents of a stored slice, use dataGetSlice().
-pub fn dataGetPtrDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: T) *T {
+pub inline fn dataGetPtrDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: T) *T {
     if (dataGetPtr(win, id, key, T)) |ptr| {
         return ptr;
     } else {
@@ -2025,7 +2025,7 @@ pub fn dataGetPtrDefault(win: ?*Window, id: u32, key: []const u8, comptime T: ty
 /// combination.
 ///
 /// If you want to get the contents of a stored slice, use dataGetSlice().
-pub fn dataGetPtr(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?*T {
+pub inline fn dataGetPtr(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?*T {
     if (dataGetInternal(win, id, key, T, false)) |bytes| {
         return @as(*T, @alignCast(@ptrCast(bytes.ptr)));
     } else {
@@ -2084,7 +2084,7 @@ pub fn dataGetSliceDefault(win: ?*Window, id: u32, key: []const u8, comptime T: 
 }
 
 // returns the backing slice of bytes if we have it
-pub fn dataGetInternal(win: ?*Window, id: u32, key: []const u8, comptime T: type, slice: bool) ?[]u8 {
+pub inline fn dataGetInternal(win: ?*Window, id: u32, key: []const u8, comptime T: type, slice: bool) ?[]u8 {
     if (win) |w| {
         // we are being called from non gui thread or outside begin()/end()
         return w.dataGetInternal(id, key, T, slice);
@@ -3721,7 +3721,7 @@ pub const Window = struct {
     }
 
     // returns the backing byte slice if we have one
-    pub fn dataGetInternal(self: *Self, id: u32, key: []const u8, comptime T: type, slice: bool) ?[]u8 {
+    pub inline fn dataGetInternal(self: *Self, id: u32, key: []const u8, comptime T: type, slice: bool) ?[]u8 {
         const hash = hashIdKey(id, key);
 
         self.data_mutex.lock();

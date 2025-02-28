@@ -139,6 +139,31 @@ pub fn init(
     };
 }
 
+// WARNING: use with caution, bypasses type safety
+pub fn initWithCustomContext(
+    CtxType: type,
+    ctx: *CtxType,
+    comptime implementation: anytype,
+) Backend {
+    const I = VTableTypes;
+    comptime var vtable: VTable = undefined;
+
+    inline for (@typeInfo(I).Struct.decls) |decl| {
+        const hasField = @hasDecl(implementation, decl.name);
+        const DeclType = @field(I, decl.name);
+        compile_assert(hasField, "Backend type " ++ @typeName(implementation) ++ " has no declaration '" ++ decl.name ++ ": " ++ @typeName(DeclType) ++ "'");
+        // WARNING: here we bypasses function type checks ignoring `dvui.backend` and accept any context pointer. Typechecked version:
+        //const f: DeclType = &@field(implementation, decl.name);
+        const f = &@field(implementation, decl.name);
+        @field(vtable, decl.name) = @ptrCast(f);
+    }
+
+    return .{
+        .ctx = @ptrCast(ctx),
+        .vtable = vtable,
+    };
+}
+
 pub fn nanoTime(self: *Backend) i128 {
     return self.vtable.nanoTime(self.ctx);
 }

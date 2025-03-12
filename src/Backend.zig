@@ -148,7 +148,7 @@ pub fn initWithCustomContext(
     const I = VTableTypes;
     comptime var vtable: VTable = undefined;
 
-    inline for (@typeInfo(I).Struct.decls) |decl| {
+    inline for (@typeInfo(I).@"struct".decls) |decl| {
         const hasField = @hasDecl(implementation, decl.name);
         const DeclType = @field(I, decl.name);
         compile_assert(hasField, "Backend type " ++ @typeName(implementation) ++ " has no declaration '" ++ decl.name ++ ": " ++ @typeName(DeclType) ++ "'");

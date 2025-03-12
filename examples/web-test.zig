@@ -1,6 +1,9 @@
 const std = @import("std");
 const dvui = @import("dvui");
-const WebBackend = @import("WebBackend");
+const WebBackend = dvui.backend;
+comptime {
+    std.debug.assert(@hasDecl(WebBackend, "WebBackend"));
+}
 usingnamespace WebBackend.wasm;
 
 const WriteError = error{};
@@ -13,7 +16,7 @@ fn writeLog(_: void, msg: []const u8) WriteError!usize {
 
 pub fn logFn(
     comptime message_level: std.log.Level,
-    comptime scope: @Type(.EnumLiteral),
+    comptime scope: @Type(.enum_literal),
     comptime format: []const u8,
     args: anytype,
 ) void {

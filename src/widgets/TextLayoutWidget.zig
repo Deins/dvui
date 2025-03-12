@@ -334,13 +334,14 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             }
 
             if (visible) {
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x + fcrs.r.w, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathFillConvex(dvui.themeGet().color_fill_control);
+                var path: std.ArrayList(dvui.Point) = .init(dvui.currentWindow().arena());
+                defer path.deinit();
 
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x + fcrs.r.w, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathStroke(true, 1.0, .none, self.wd.options.color(.border));
+                try path.append(.{ .x = fcrs.r.x + fcrs.r.w, .y = fcrs.r.y });
+                try dvui.pathAddArc(&path, .{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
+
+                try dvui.pathFillConvex(path.items, dvui.themeGet().color_fill_control);
+                try dvui.pathStroke(path.items, 1.0 * fcrs.s, self.wd.options.color(.border), .{ .closed = true });
             }
 
             dvui.dataSet(null, fc.wd.id, "_offset", offset);
@@ -404,13 +405,14 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             }
 
             if (visible) {
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathFillConvex(dvui.themeGet().color_fill_control);
+                var path: std.ArrayList(dvui.Point) = .init(dvui.currentWindow().arena());
+                defer path.deinit();
 
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathStroke(true, 1.0, .none, self.wd.options.color(.border));
+                try path.append(.{ .x = fcrs.r.x, .y = fcrs.r.y });
+                try dvui.pathAddArc(&path, .{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
+
+                try dvui.pathFillConvex(path.items, dvui.themeGet().color_fill_control);
+                try dvui.pathStroke(path.items, 1.0 * fcrs.s, self.wd.options.color(.border), .{ .closed = true });
             }
 
             dvui.dataSet(null, fc.wd.id, "_offset", offset);
@@ -1149,7 +1151,18 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
 
         const rs = self.screenRectScale(Rect{ .x = self.insert_pt.x, .y = self.insert_pt.y, .w = width, .h = @max(0, self.wd.contentRect().h - self.insert_pt.y) });
         //std.debug.print("renderText: {} {s}\n", .{ rs.r, txt[0..end] });
-        const rtxt = if (newline) txt[0 .. end - 1] else txt[0..end];
+        var rtxt = if (newline) txt[0 .. end - 1] else txt[0..end];
+
+        // If the newline is part of the selection, then render it as a
+        // selected space.  This matches Chrome's behavior, although this is
+        // not a universal - Firefox doesn't do this.
+        if (newline and
+            (self.selection.start -| self.bytes_seen -| rtxt.len) == 0 and
+            (self.selection.end -| self.bytes_seen -| rtxt.len) > 0)
+        {
+            rtxt = try std.fmt.allocPrint(dvui.currentWindow().arena(), "{s} ", .{rtxt});
+        }
+
         try dvui.renderText(.{
             .font = options.fontGet(),
             .text = rtxt,

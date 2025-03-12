@@ -191,10 +191,10 @@ pub fn animatingWindowRect(src: std.builtin.SourceLocation, rect: *Rect, show_fl
     return fwin;
 }
 
-var calculation: f32 = 0;
-var calculand: f32 = 0;
+var calculation: f64 = 0;
+var calculand: ?f64 = null;
 var active_op: ?u8 = null;
-var digits_after_dot: f32 = 0;
+var digits_after_dot: f64 = 0;
 pub fn calculator() !void {
     var vbox = try dvui.box(@src(), .vertical, .{});
     defer vbox.deinit();
@@ -202,7 +202,7 @@ pub fn calculator() !void {
     const loop_labels = [_]u8{ 'C', 'N', '%', '/', '7', '8', '9', 'x', '4', '5', '6', '-', '1', '2', '3', '+', '0', '.', '=' };
     const loop_count = @sizeOf(@TypeOf(loop_labels)) / @sizeOf(@TypeOf(loop_labels[0]));
 
-    try dvui.label(@src(), "{d}", .{calculation}, .{ .gravity_x = 1.0 });
+    try dvui.label(@src(), "{d}", .{if (calculand) |val| val else calculation}, .{ .gravity_x = 1.0 });
 
     for (0..5) |row_i| {
         var b = try dvui.box(@src(), .horizontal, .{ .min_size_content = .{ .w = 110 }, .id_extra = row_i });
@@ -221,7 +221,7 @@ pub fn calculator() !void {
             if (try dvui.button(@src(), &[_]u8{letter}, .{}, opts.override(.{ .id_extra = letter }))) {
                 if (letter == 'C') {
                     calculation = 0;
-                    calculand = 0;
+                    calculand = null;
                     active_op = null;
                     digits_after_dot = 0;
                 }
@@ -264,22 +264,25 @@ pub fn calculator() !void {
 
                 if (active_op != null) {
                     if (letter >= '0' and letter <= '9') {
-                        const letterDigit: f32 = @floatFromInt(letter - '0');
+                        if (calculand == null) calculand = 0.0;
+                        const letterDigit: f64 = @floatFromInt(letter - '0');
                         if (digits_after_dot > 0) {
-                            calculand += letterDigit / @exp(@log(10.0) * digits_after_dot);
+                            calculand.? += letterDigit / @exp(@log(10.0) * digits_after_dot);
                             digits_after_dot += 1;
                         } else {
-                            calculand *= 10;
-                            calculand += letterDigit;
+                            calculand.? *= 10;
+                            calculand.? += letterDigit;
                         }
                     }
                     if (letter == '=') {
-                        if (active_op == '/') calculation /= calculand;
-                        if (active_op == '-') calculation -= calculand;
-                        if (active_op == '+') calculation += calculand;
-                        if (active_op == 'x') calculation *= calculand;
+                        if (calculand) |val| {
+                            if (active_op == '/') calculation /= val;
+                            if (active_op == '-') calculation -= val;
+                            if (active_op == '+') calculation += val;
+                            if (active_op == 'x') calculation *= val;
+                        }
                         active_op = null;
-                        calculand = 0;
+                        calculand = null;
                         digits_after_dot = 0;
                     }
                 }
@@ -295,6 +298,7 @@ pub const demoKind = enum {
     styling,
     layout,
     text_layout,
+    plots,
     reorderable,
     menus,
     focus,
@@ -313,6 +317,7 @@ pub const demoKind = enum {
             .styling => "Styling",
             .layout => "Layout",
             .text_layout => "Text Layout",
+            .plots => "Plots",
             .reorderable => "Reorderable",
             .menus => "Menus / Tabs",
             .focus => "Focus",
@@ -333,6 +338,7 @@ pub const demoKind = enum {
             .styling => .{ .scale = 0.45, .offset = .{} },
             .layout => .{ .scale = 0.45, .offset = .{ .x = -50 } },
             .text_layout => .{ .scale = 0.45, .offset = .{} },
+            .plots => .{ .scale = 0.45, .offset = .{} },
             .reorderable => .{ .scale = 0.45, .offset = .{ .y = -200 } },
             .menus => .{ .scale = 0.45, .offset = .{} },
             .focus => .{ .scale = 0.45, .offset = .{} },
@@ -421,7 +427,7 @@ pub fn demo() !void {
         var fbox = try dvui.flexbox(@src(), .{}, .{ .expand = .both, .background = true });
         defer fbox.deinit();
 
-        inline for (0..@typeInfo(demoKind).Enum.fields.len) |i| {
+        inline for (0..@typeInfo(demoKind).@"enum".fields.len) |i| {
             const e = @as(demoKind, @enumFromInt(i));
             var bw = dvui.ButtonWidget.init(@src(), .{}, .{ .id_extra = i, .border = Rect.all(1), .background = true, .min_size_content = dvui.Size.all(120), .max_size_content = dvui.Size.all(120), .margin = Rect.all(5), .color_fill = .{ .name = .fill } });
             try bw.install();
@@ -458,6 +464,7 @@ pub fn demo() !void {
                     .styling => try styling(),
                     .layout => try layout(),
                     .text_layout => try layoutText(),
+                    .plots => try plots(),
                     .reorderable => try reorderLists(),
                     .menus => try menus(),
                     .focus => try focus(),
@@ -509,6 +516,7 @@ pub fn demo() !void {
             .styling => styling(),
             .layout => layout(),
             .text_layout => layoutText(),
+            .plots => plots(),
             .reorderable => reorderLists(),
             .menus => menus(),
             .focus => focus(),
@@ -616,6 +624,10 @@ pub fn demo() !void {
     if (IconBrowser.show) {
         try icon_browser();
     }
+
+    if (StrokeTest.show) {
+        try show_stroke_test_window();
+    }
 }
 
 pub fn structUI() !void {
@@ -658,7 +670,7 @@ pub fn themeEditor() !void {
     var b2 = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
     defer b2.deinit();
 
-    const color_field_options = .{ .fields = .{
+    const color_field_options = dvui.StructFieldOptions(dvui.Color){ .fields = .{
         .r = .{ .min = 0, .max = 255, .widget_type = .slider },
         .g = .{ .min = 0, .max = 255, .widget_type = .slider },
         .b = .{ .min = 0, .max = 255, .widget_type = .slider },
@@ -754,8 +766,8 @@ pub fn basicWidgets(demo_win_id: u32) !void {
 
         try dvui.label(@src(), "Link:", .{}, .{ .gravity_y = 0.5 });
 
-        if (try dvui.labelClick(@src(), "https://github.com/david-vanderson/dvui", .{}, .{ .gravity_y = 0.5, .color_text = .{ .color = .{ .r = 0x35, .g = 0x84, .b = 0xe4 } } })) {
-            try dvui.openURL("https://github.com/david-vanderson/dvui");
+        if (try dvui.labelClick(@src(), "https://david-vanderson.github.io/", .{}, .{ .gravity_y = 0.5, .color_text = .{ .color = .{ .r = 0x35, .g = 0x84, .b = 0xe4 } } })) {
+            try dvui.openURL("https://david-vanderson.github.io/");
         }
 
         if (try dvui.labelClick(@src(), "docs", .{}, .{ .gravity_y = 0.5, .margin = .{ .x = 10 }, .color_text = .{ .color = .{ .r = 0x35, .g = 0x84, .b = 0xe4 } } })) {
@@ -774,7 +786,7 @@ pub fn basicWidgets(demo_win_id: u32) !void {
         te.deinit();
     }
 
-    inline for (@typeInfo(RadioChoice).Enum.fields, 0..) |field, i| {
+    inline for (@typeInfo(RadioChoice).@"enum".fields, 0..) |field, i| {
         if (try dvui.radio(@src(), radio_choice == @as(RadioChoice, @enumFromInt(field.value)), "Radio " ++ field.name, .{ .id_extra = i })) {
             radio_choice = @enumFromInt(field.value);
         }
@@ -846,7 +858,7 @@ pub fn basicWidgets(demo_win_id: u32) !void {
 
         try dvui.label(@src(), "Icons", .{}, .{ .gravity_y = 0.5 });
 
-        const icon_opts = dvui.Options{ .gravity_y = 0.5, .min_size_content = .{ .h = 12 + icon_image_size_extra }, .rotation = icon_image_rotation };
+        const icon_opts = dvui.Options{ .gravity_y = 0.5, .min_size_content = .{ .h = 16 + icon_image_size_extra }, .rotation = icon_image_rotation };
         try dvui.icon(@src(), "cycle", entypo.cycle, icon_opts);
         try dvui.icon(@src(), "aircraft", entypo.aircraft, icon_opts);
         try dvui.icon(@src(), "notes", entypo.beamed_note, icon_opts);
@@ -1010,7 +1022,7 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
             "toggle",
             if (text_entry_password_buf_obf_enable) entypo.eye_with_line else entypo.eye,
             .{},
-            .{ .gravity_y = 0.5 },
+            .{ .expand = .ratio },
         )) {
             text_entry_password_buf_obf_enable = !text_entry_password_buf_obf_enable;
         }
@@ -1115,7 +1127,7 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
 
             var new_filename: ?[]const u8 = null;
 
-            if (try dvui.buttonIcon(@src(), "select font", entypo.folder, .{}, .{ .min_size_content = .{ .h = 20 }, .expand = .ratio, .gravity_x = 1.0 })) {
+            if (try dvui.buttonIcon(@src(), "select font", entypo.folder, .{}, .{ .expand = .ratio, .gravity_x = 1.0 })) {
                 new_filename = try dvui.dialogNativeFileOpen(dvui.currentWindow().arena(), .{ .title = "Pick Font File" });
             }
 
@@ -1201,7 +1213,7 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
         inline for (parse_types, 0..) |T, i| {
             if (i == S.type_dropdown_val) {
                 var value: T = undefined;
-                if (@typeInfo(T) == .Int) {
+                if (@typeInfo(T) == .int) {
                     S.value = std.math.clamp(S.value, std.math.minInt(T), std.math.maxInt(T));
                     value = @intFromFloat(S.value);
                     S.value = @floatFromInt(value);
@@ -1212,7 +1224,7 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
                 try displayTextEntryNumberResult(result);
 
                 if (result.changed) {
-                    if (@typeInfo(T) == .Int) {
+                    if (@typeInfo(T) == .int) {
                         S.value = @floatFromInt(value);
                     } else {
                         S.value = @floatCast(value);
@@ -1557,10 +1569,10 @@ pub fn layoutText() !void {
         defer tl.deinit();
 
         var cbox = try dvui.box(@src(), .vertical, .{ .margin = .{ .w = 6 }, .min_size_content = .{ .w = 40 } });
-        if (try dvui.buttonIcon(@src(), "play", entypo.controller_play, .{}, .{ .min_size_content = .{ .h = 20 }, .expand = .ratio })) {
+        if (try dvui.buttonIcon(@src(), "play", entypo.controller_play, .{}, .{ .expand = .ratio })) {
             try dvui.dialog(@src(), .{ .modal = false, .title = "Ok Dialog", .message = "You clicked play" });
         }
-        if (try dvui.buttonIcon(@src(), "more", entypo.dots_three_vertical, .{}, .{ .min_size_content = .{ .h = 20 }, .expand = .ratio })) {
+        if (try dvui.buttonIcon(@src(), "more", entypo.dots_three_vertical, .{}, .{ .expand = .ratio })) {
             try dvui.dialog(@src(), .{ .modal = false, .title = "Ok Dialog", .message = "You clicked more" });
         }
         cbox.deinit();
@@ -1585,7 +1597,7 @@ pub fn layoutText() !void {
         try tl.addText(lorem, .{ .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) });
 
         if (try tl.addTextClick("This text is a link that is part of the text layout and goes to the dvui home page.", .{ .color_text = .{ .color = .{ .r = 0x35, .g = 0x84, .b = 0xe4 } }, .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) })) {
-            try dvui.openURL("https://github.com/david-vanderson/dvui");
+            try dvui.openURL("https://david-vanderson.github.io/");
         }
 
         try tl.addText(lorem2, .{ .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) });
@@ -1604,6 +1616,54 @@ pub fn layoutText() !void {
         try tl.addText("is some ", .{ .font_style = .title_2, .color_text = .{ .color = .{ .b = 100, .g = 100 } } });
         try tl.addText("ugly text ", .{ .font_style = .title_1, .color_text = .{ .color = .{ .r = 100, .g = 100 } } });
         try tl.addText("that shows styling.", .{ .font_style = .caption, .color_text = .{ .color = .{ .r = 100, .g = 50, .b = 50 } } });
+    }
+}
+
+pub fn plots() !void {
+    var save: bool = false;
+    if (try dvui.button(@src(), "Save Plot", .{}, .{})) {
+        save = true;
+    }
+
+    var vbox = try dvui.box(@src(), .vertical, .{ .min_size_content = .{ .w = 300, .h = 100 }, .expand = .ratio });
+    defer vbox.deinit();
+
+    var pic: ?dvui.Picture = null;
+    if (save) {
+        pic = dvui.Picture.start(vbox.data().contentRectScale().r);
+    }
+
+    var plot = try dvui.plot(@src(), .{ .title = "Plot Title", .x_axis = "X Axis", .x_min = 0.05, .x_max = 0.95, .y_axis = "Y Axis", .y_min = -0.8, .y_max = 0.8 }, .{ .expand = .both });
+    var s1 = plot.line();
+
+    const points: usize = 1000;
+    const freq: f32 = 5;
+    for (0..points + 1) |i| {
+        const fval: f32 = @sin(2.0 * std.math.pi * @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(points)) * freq);
+        try s1.point(.{ .x = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(points)), .y = fval });
+    }
+    try s1.stroke(1, dvui.themeGet().color_accent);
+    s1.deinit();
+    plot.deinit();
+
+    if (pic) |p| {
+        const texture = p.stop();
+        const png_slice = try dvui.pngFromTexture(dvui.currentWindow().arena(), texture, .{});
+        defer dvui.currentWindow().arena().free(png_slice);
+
+        if (dvui.wasm) {
+            try dvui.backend.downloadData("plot.png", png_slice);
+        } else {
+            const filename = try dvui.dialogNativeFileSave(dvui.currentWindow().arena(), .{ .path = "plot.png" });
+            if (filename) |fname| {
+                defer dvui.currentWindow().arena().free(fname);
+
+                var file = try std.fs.createFileAbsoluteZ(fname, .{});
+                defer file.close();
+
+                try file.writeAll(png_slice);
+            }
+        }
     }
 }
 
@@ -1821,8 +1881,7 @@ pub fn reorderListsAdvanced() !void {
 
         if (reorderable.targetRectScale()) |rs| {
             // user is dragging a reorderable over this rect, could draw anything here
-            try dvui.pathAddRect(rs.r, .{});
-            try dvui.pathFillConvex(.{ .r = 0, .g = 255, .b = 0 });
+            try rs.r.fill(.{}, .{ .r = 0, .g = 255, .b = 0 });
 
             // reset to use next space, need a separator
             try dvui.separator(@src(), .{ .expand = .horizontal, .margin = dvui.Rect.all(6) });
@@ -1853,8 +1912,7 @@ pub fn reorderListsAdvanced() !void {
 
         if (reorderable.targetRectScale()) |rs| {
             // user is dragging a reorderable over this rect
-            try dvui.pathAddRect(rs.r, .{});
-            try dvui.pathFillConvex(.{ .r = 0, .g = 255, .b = 0 });
+            try rs.r.fill(.{}, .{ .r = 0, .g = 255, .b = 0 });
         }
     }
 
@@ -2211,13 +2269,15 @@ pub fn scrollCanvas() !void {
     // can use this to convert between data and screen coords
     const dataRectScale = scaler.screenRectScale(.{});
 
-    try dvui.pathAddPoint(dataRectScale.pointToScreen(.{ .x = -10 }));
-    try dvui.pathAddPoint(dataRectScale.pointToScreen(.{ .x = 10 }));
-    try dvui.pathStroke(false, 1, .none, dvui.Color.black);
+    try dvui.pathStroke(&.{
+        dataRectScale.pointToScreen(.{ .x = -10 }),
+        dataRectScale.pointToScreen(.{ .x = 10 }),
+    }, 1, dvui.Color.black, .{});
 
-    try dvui.pathAddPoint(dataRectScale.pointToScreen(.{ .y = -10 }));
-    try dvui.pathAddPoint(dataRectScale.pointToScreen(.{ .y = 10 }));
-    try dvui.pathStroke(false, 1, .none, dvui.Color.black);
+    try dvui.pathStroke(&.{
+        dataRectScale.pointToScreen(.{ .y = -10 }),
+        dataRectScale.pointToScreen(.{ .y = 10 }),
+    }, 1, dvui.Color.black, .{});
 
     // keep record of bounding box
     var mbbox: ?Rect = null;
@@ -2304,8 +2364,6 @@ pub fn scrollCanvas() !void {
                 const col = if (dragging_box and i == Data.drag_box_window and k == Data.drag_box_content) Data.box_green else Data.box_blue;
                 var dbox = try dvui.box(@src(), .vertical, .{ .id_extra = k, .min_size_content = .{ .w = 20, .h = 20 }, .background = true, .color_fill = .{ .color = col } });
                 defer dbox.deinit();
-
-                dvui.captureMouseMaintain(dbox.data().id);
 
                 for (evts) |*e| {
                     if (!dvui.eventMatchSimple(e, dbox.data())) {
@@ -2894,7 +2952,7 @@ pub fn debuggingErrors() !void {
         try makeLabels(@src(), 1);
     }
 
-    if (try dvui.expander(@src(), "Duplicate id (expanding will log error)", .{}, .{ .expand = .horizontal })) {
+    if (try dvui.expander(@src(), "Duplicate id (will log error)", .{}, .{ .expand = .horizontal })) {
         var b = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
         defer b.deinit();
         for (0..2) |i| {
@@ -2915,7 +2973,7 @@ pub fn debuggingErrors() !void {
         _ = try dvui.button(@src(), "Second Child", .{}, .{});
     }
 
-    if (try dvui.expander(@src(), "Debug key bindings", .{}, .{ .expand = .horizontal })) {
+    if (try dvui.expander(@src(), "Key bindings", .{}, .{ .expand = .horizontal })) {
         var b = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
         defer b.deinit();
 
@@ -2970,24 +3028,7 @@ pub fn debuggingErrors() !void {
         try tl.addText("\nCurrent keybinds:\n", .{});
         outer = dvui.currentWindow().keybinds.iterator();
         while (outer.next()) |okv| {
-            try tl.format("\n{s}\n    ", .{okv.key_ptr.*}, .{});
-            if (okv.value_ptr.control) |ctrl| {
-                try tl.format("{s}ctrl ", .{if (ctrl) "" else "!"}, .{});
-            }
-            if (okv.value_ptr.command) |command| {
-                try tl.format("{s}cmd ", .{if (command) "" else "!"}, .{});
-            }
-            if (okv.value_ptr.alt) |alt| {
-                try tl.format("{s}alt ", .{if (alt) "" else "!"}, .{});
-            }
-            if (okv.value_ptr.shift) |shift| {
-                try tl.format("{s}shift ", .{if (shift) "" else "!"}, .{});
-            }
-            if (okv.value_ptr.key) |key| {
-                try tl.format("{s}\n", .{@tagName(key)}, .{});
-            } else {
-                try tl.addText("\n", .{});
-            }
+            try tl.format("\n{s}\n    {s}\n", .{ okv.key_ptr.*, try okv.value_ptr.format(dvui.currentWindow().arena()) }, .{});
         }
         tl.deinit();
     }
@@ -2998,10 +3039,6 @@ pub fn debuggingErrors() !void {
 
     if (try dvui.button(@src(), "Stroke Test", .{}, .{})) {
         StrokeTest.show = true;
-    }
-
-    if (StrokeTest.show) {
-        try show_stroke_test_window();
     }
 }
 
@@ -3044,17 +3081,17 @@ pub fn dialogDirect() !void {
     }
 }
 
-const icon_names: [@typeInfo(entypo).Struct.decls.len][]const u8 = blk: {
-    var blah: [@typeInfo(entypo).Struct.decls.len][]const u8 = undefined;
-    for (@typeInfo(entypo).Struct.decls, 0..) |d, i| {
+const icon_names: [@typeInfo(entypo).@"struct".decls.len][]const u8 = blk: {
+    var blah: [@typeInfo(entypo).@"struct".decls.len][]const u8 = undefined;
+    for (@typeInfo(entypo).@"struct".decls, 0..) |d, i| {
         blah[i] = d.name;
     }
     break :blk blah;
 };
 
-const icon_fields: [@typeInfo(entypo).Struct.decls.len][]const u8 = blk: {
-    var blah: [@typeInfo(entypo).Struct.decls.len][]const u8 = undefined;
-    for (@typeInfo(entypo).Struct.decls, 0..) |d, i| {
+const icon_fields: [@typeInfo(entypo).@"struct".decls.len][]const u8 = blk: {
+    var blah: [@typeInfo(entypo).@"struct".decls.len][]const u8 = undefined;
+    for (@typeInfo(entypo).@"struct".decls, 0..) |d, i| {
         blah[i] = @field(entypo, d.name);
     }
     break :blk blah;
@@ -3065,7 +3102,7 @@ pub fn icon_browser() !void {
     defer fwin.deinit();
     try dvui.windowHeader("Icon Browser", "", &IconBrowser.show);
 
-    const num_icons = @typeInfo(entypo).Struct.decls.len;
+    const num_icons = @typeInfo(entypo).@"struct".decls.len;
     const height = @as(f32, @floatFromInt(num_icons)) * IconBrowser.row_height;
 
     // we won't have the height the first frame, so always set it
@@ -3191,20 +3228,21 @@ pub const StrokeTest = struct {
         for (points, 0..) |p, i| {
             var rect = dvui.Rect.fromPoint(p.plus(.{ .x = -10, .y = -10 })).toSize(.{ .w = 20, .h = 20 });
             const rsrect = rect.scale(rs.s).offset(rs.r);
-            try dvui.pathAddRect(rsrect, dvui.Rect.all(1));
-            try dvui.pathFillConvex(fill_color);
+            try rsrect.fill(dvui.Rect.all(1), fill_color);
 
             _ = i;
             //_ = try dvui.button(@src(), i, "Floating", .{}, .{ .rect = dvui.Rect.fromPoint(p) });
         }
 
+        var path: std.ArrayList(dvui.Point) = .init(dvui.currentWindow().arena());
+        defer path.deinit();
+
         for (points) |p| {
-            const rsp = rs.pointToScreen(p);
-            try dvui.pathAddPoint(rsp);
+            try path.append(rs.pointToScreen(p));
         }
 
         const stroke_color = dvui.Color{ .r = 0, .g = 0, .b = 255, .a = 150 };
-        try dvui.pathStroke(stroke_test_closed, rs.s * thickness, StrokeTest.endcap_style, stroke_color);
+        try dvui.pathStroke(path.items, rs.s * thickness, stroke_color, .{ .closed = stroke_test_closed, .endcap_style = StrokeTest.endcap_style });
     }
 
     pub fn widget(self: *Self) dvui.Widget {

@@ -1,6 +1,5 @@
 const builtin = @import("builtin");
 const std = @import("std");
-pub const backend_kind = @import("build_options").backend;
 pub const backend = @import("backend");
 const tvg = @import("tinyvg/tinyvg.zig");
 
@@ -54,6 +53,7 @@ pub const structEntry = se.structEntry;
 pub const structEntryEx = se.structEntryEx;
 pub const structEntryAlloc = se.structEntryAlloc;
 pub const structEntryExAlloc = se.structEntryExAlloc;
+pub const StructFieldOptions = se.StructFieldOptions;
 
 pub const enums = @import("enums.zig");
 
@@ -78,7 +78,13 @@ pub const c = @cImport({
         @cInclude("stb_truetype.h");
     }
 
+    if (wasm) {
+        @cDefine("STBI_NO_STDIO", "1");
+        @cDefine("STBI_NO_STDLIB", "1");
+        @cDefine("STBIW_NO_STDLIB", "1");
+    }
     @cInclude("stb_image.h");
+    @cInclude("stb_image_write.h");
 
     if (!wasm) {
         @cInclude("tinyfiledialogs.h");
@@ -255,8 +261,7 @@ const FontCacheEntry = struct {
     height: f32,
     ascent: f32,
     glyph_info: std.AutoHashMap(u32, GlyphInfo),
-    texture_atlas: *anyopaque,
-    texture_atlas_size: Size,
+    texture_atlas: Texture,
     texture_atlas_regen: bool,
 
     pub fn deinit(self: *FontCacheEntry, win: *Window) void {
@@ -450,7 +455,7 @@ const FontCacheEntry = struct {
             const x1: f32 = if (ret == 0) 0 else self.scaleFactor * @as(f32, @floatFromInt(ix1));
             const y1: f32 = if (ret == 0) 0 else self.scaleFactor * @as(f32, @floatFromInt(iy1));
 
-            //std.debug.print("codepoint {d} stbtt x0 {d} x1 {d} y0 {d} y1 {d}\n", .{ codepoint, x0, x1, y0, y1 });
+            //std.debug.print("{d} codepoint {d} stbtt x0 {d} {d} x1 {d} {d} y0 {d} {d} y1 {d} {d}\n", .{ self.ascent, codepoint, ix0, x0, ix1, x1, iy0, y0, iy1, y1 });
 
             gi = GlyphInfo{
                 .advance = self.scaleFactor * @as(f32, @floatFromInt(advanceWidth)),
@@ -488,8 +493,34 @@ const FontCacheEntry = struct {
         var nearest_break: bool = false;
 
         var utf8 = (try std.unicode.Utf8View.init(text)).iterator();
+        var last_codepoint: u32 = 0;
+        var last_glyph_index: u32 = 0;
         while (utf8.nextCodepoint()) |codepoint| {
             const gi = try fce.glyphInfoGet(@as(u32, @intCast(codepoint)), font_name);
+
+            // kerning
+            if (last_codepoint != 0) {
+                if (useFreeType) {
+                    if (last_glyph_index == 0) last_glyph_index = c.FT_Get_Char_Index(fce.face, last_codepoint);
+                    const glyph_index: u32 = c.FT_Get_Char_Index(fce.face, codepoint);
+                    var kern: c.FT_Vector = undefined;
+                    FontCacheEntry.intToError(c.FT_Get_Kerning(fce.face, last_glyph_index, glyph_index, c.FT_KERNING_DEFAULT, &kern)) catch |err| {
+                        log.warn("renderText freetype error {!} trying to FT_Get_Kerning font {s} codepoints {d} {d}\n", .{ err, font_name, last_codepoint, codepoint });
+                        return error.freetypeError;
+                    };
+                    last_glyph_index = glyph_index;
+
+                    const kern_x: f32 = @as(f32, @floatFromInt(kern.x)) / 64.0;
+
+                    x += kern_x;
+                } else {
+                    const kern_adv: c_int = c.stbtt_GetCodepointKernAdvance(&fce.face, @as(c_int, @intCast(last_codepoint)), @as(c_int, @intCast(codepoint)));
+                    const kern_x = fce.scaleFactor * @as(f32, @floatFromInt(kern_adv));
+
+                    x += kern_x;
+                }
+            }
+            last_codepoint = codepoint;
 
             minx = @min(minx, x + gi.leftBearing);
             maxx = @max(maxx, x + gi.leftBearing + gi.w);
@@ -497,8 +528,6 @@ const FontCacheEntry = struct {
 
             miny = @min(miny, gi.topBearing);
             maxy = @max(maxy, gi.topBearing + gi.h);
-
-            // TODO: kerning
 
             if (codepoint == '\n') {
                 // newlines always terminate, and don't use any space
@@ -565,7 +594,7 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
     var entry: FontCacheEntry = undefined;
 
     // make debug texture atlas so we can see if something later goes wrong
-    const size = .{ .w = 10, .h = 10 };
+    const size = Size{ .w = 10, .h = 10 };
     const pixels = try cw.arena().alloc(u8, @as(usize, @intFromFloat(size.w * size.h)) * 4);
     @memset(pixels, 255);
 
@@ -607,7 +636,6 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
                     .ascent = @floor(ascent),
                     .glyph_info = std.AutoHashMap(u32, GlyphInfo).init(cw.gpa),
                     .texture_atlas = textureCreate(pixels.ptr, @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear),
-                    .texture_atlas_size = size,
                     .texture_atlas_regen = true,
                 };
 
@@ -631,11 +659,10 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
         entry = FontCacheEntry{
             .face = face,
             .scaleFactor = SF,
-            .height = height,
-            .ascent = ascent,
+            .height = @ceil(height),
+            .ascent = @floor(ascent),
             .glyph_info = std.AutoHashMap(u32, GlyphInfo).init(cw.gpa),
             .texture_atlas = textureCreate(pixels.ptr, @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear),
-            .texture_atlas_size = size,
             .texture_atlas_regen = true,
         };
     }
@@ -650,9 +677,14 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
     return cw.font_cache.getPtr(fontHash).?;
 }
 
+pub const Texture = struct {
+    ptr: *anyopaque,
+    width: u32,
+    height: u32,
+};
+
 pub const TextureCacheEntry = struct {
-    texture: *anyopaque,
-    size: Size,
+    texture: Texture,
     used: bool = true,
 
     pub fn hash(bytes: []const u8, height: u32) u32 {
@@ -708,7 +740,7 @@ pub fn iconTexture(name: []const u8, tvg_bytes: []const u8, height: u32) !Textur
 
     //std.debug.print("created icon texture \"{s}\" ask height {d} size {d}x{d}\n", .{ name, height, render.width, render.height });
 
-    const entry = TextureCacheEntry{ .texture = texture, .size = .{ .w = @as(f32, @floatFromInt(render.width)), .h = @as(f32, @floatFromInt(render.height)) } };
+    const entry = TextureCacheEntry{ .texture = texture };
     try cw.texture_cache.put(icon_hash, entry);
 
     return entry;
@@ -724,16 +756,16 @@ pub const RenderCommand = struct {
             color: Color,
         },
         texture: struct {
-            tex: *anyopaque,
+            tex: Texture,
             rs: RectScale,
             opts: RenderTextureOptions,
         },
         pathFillConvex: struct {
-            path: std.ArrayList(Point),
+            path: []const Point,
             color: Color,
         },
         pathStroke: struct {
-            path: std.ArrayList(Point),
+            path: []const Point,
             closed: bool,
             thickness: f32,
             endcap_style: EndCapStyle,
@@ -862,16 +894,8 @@ pub fn cursorSet(cursor: enums.Cursor) void {
     cw.cursor_requested = cursor;
 }
 
-/// Add point to the current path.
-///
-/// Only valid between dvui.Window.begin() and end().
-pub fn pathAddPoint(p: Point) !void {
-    const cw = currentWindow();
-    try cw.path.append(p);
-}
-
-/// Add rounded rect to current path.  Starts from top left, and ends at top
-/// right unclosed.
+/// Add rounded rect to path.  Starts from top left, and ends at top right
+/// unclosed.  See Rect.fill().
 ///
 /// radius values:
 /// - x is top-left corner
@@ -880,7 +904,7 @@ pub fn pathAddPoint(p: Point) !void {
 /// - h is bottom-left corner
 ///
 /// Only valid between dvui.Window.begin() and end().
-pub fn pathAddRect(r: Rect, radius: Rect) !void {
+pub fn pathAddRect(path: *std.ArrayList(Point), r: Rect, radius: Rect) !void {
     var rad = radius;
     const maxrad = @min(r.w, r.h) / 2;
     rad.x = @min(rad.x, maxrad);
@@ -891,23 +915,23 @@ pub fn pathAddRect(r: Rect, radius: Rect) !void {
     const bl = Point{ .x = r.x + rad.h, .y = r.y + r.h - rad.h };
     const br = Point{ .x = r.x + r.w - rad.w, .y = r.y + r.h - rad.w };
     const tr = Point{ .x = r.x + r.w - rad.y, .y = r.y + rad.y };
-    try pathAddArc(tl, rad.x, math.pi * 1.5, math.pi, @abs(tl.y - bl.y) < 0.5);
-    try pathAddArc(bl, rad.h, math.pi, math.pi * 0.5, @abs(bl.x - br.x) < 0.5);
-    try pathAddArc(br, rad.w, math.pi * 0.5, 0, @abs(br.y - tr.y) < 0.5);
-    try pathAddArc(tr, rad.y, math.pi * 2.0, math.pi * 1.5, @abs(tr.x - tl.x) < 0.5);
+    try pathAddArc(path, tl, rad.x, math.pi * 1.5, math.pi, @abs(tl.y - bl.y) < 0.5);
+    try pathAddArc(path, bl, rad.h, math.pi, math.pi * 0.5, @abs(bl.x - br.x) < 0.5);
+    try pathAddArc(path, br, rad.w, math.pi * 0.5, 0, @abs(br.y - tr.y) < 0.5);
+    try pathAddArc(path, tr, rad.y, math.pi * 2.0, math.pi * 1.5, @abs(tr.x - tl.x) < 0.5);
 }
 
-/// Add line segments creating an arc to the current path.
+/// Add line segments creating an arc to path.
 ///
 /// start >= end, both are radians that go clockwise from the positive x axis.
 ///
 /// If skip_end, the final point will not be added.  Useful if the next
-/// addition to the path would duplicate the end of the arc.
+/// addition to path would duplicate the end of the arc.
 ///
 /// Only valid between dvui.Window.begin() and end().
-pub fn pathAddArc(center: Point, radius: f32, start: f32, end: f32, skip_end: bool) !void {
+pub fn pathAddArc(path: *std.ArrayList(Point), center: Point, radius: f32, start: f32, end: f32, skip_end: bool) !void {
     if (radius == 0) {
-        try pathAddPoint(center);
+        try path.append(center);
         return;
     }
 
@@ -927,50 +951,46 @@ pub fn pathAddArc(center: Point, radius: f32, start: f32, end: f32, skip_end: bo
     var a: f32 = start;
     var i: u32 = 0;
     while (i < num) : (i += 1) {
-        try pathAddPoint(Point{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
+        try path.append(Point{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
         a -= step;
     }
 
     if (!skip_end) {
         a = end;
-        try pathAddPoint(Point{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
+        try path.append(Point{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
     }
 }
 
-/// Fill the current path (must be convex) with col and free the path.
+/// Fill path (must be convex) with color.  See Rect.fill().
 ///
 /// Only valid between dvui.Window.begin() and end().
-pub fn pathFillConvex(color: Color) !void {
-    const cw = currentWindow();
-
-    if (cw.path.items.len < 3) {
-        cw.path.clearAndFree();
+pub fn pathFillConvex(path: []const Point, color: Color) !void {
+    if (path.len < 3) {
         return;
     }
 
     if (dvui.clipGet().empty()) {
-        cw.path.clearAndFree();
         return;
     }
 
+    const cw = currentWindow();
+
     if (!cw.render_target.rendering) {
-        var path_copy = std.ArrayList(Point).init(cw.arena());
-        try path_copy.appendSlice(cw.path.items);
+        const path_copy = try cw.arena().dupe(Point, path);
         const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .pathFillConvex = .{ .path = path_copy, .color = color } } };
 
         var sw = cw.subwindowCurrent();
         try sw.render_cmds.append(cmd);
-        cw.path.clearAndFree();
         return;
     }
 
-    var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), cw.path.items.len * 2);
+    var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), path.len * 2);
     defer vtx.deinit();
-    const idx_count = (cw.path.items.len - 2) * 3 + cw.path.items.len * 6;
+    const idx_count = (path.len - 2) * 3 + path.len * 6;
     var idx = try std.ArrayList(u16).initCapacity(cw.arena(), idx_count);
     defer idx.deinit();
     const col = color.alphaMultiply();
-    const col_trans = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+    const col_trans = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     var bounds = Rect{}; // w and h are maxx and maxy for now
     bounds.x = std.math.floatMax(f32);
@@ -979,13 +999,13 @@ pub fn pathFillConvex(color: Color) !void {
     bounds.h = -bounds.x;
 
     var i: usize = 0;
-    while (i < cw.path.items.len) : (i += 1) {
-        const ai = (i + cw.path.items.len - 1) % cw.path.items.len;
-        const bi = i % cw.path.items.len;
-        const ci = (i + 1) % cw.path.items.len;
-        const aa = cw.path.items[ai].diff(cw.render_target.offset);
-        const bb = cw.path.items[bi].diff(cw.render_target.offset);
-        const cc = cw.path.items[ci].diff(cw.render_target.offset);
+    while (i < path.len) : (i += 1) {
+        const ai = (i + path.len - 1) % path.len;
+        const bi = i % path.len;
+        const ci = (i + 1) % path.len;
+        const aa = path[ai].diff(cw.render_target.offset);
+        const bb = path[bi].diff(cw.render_target.offset);
+        const cc = path[ci].diff(cw.render_target.offset);
 
         const diffab = Point.diff(aa, bb).normalize();
         const diffbc = Point.diff(bb, cc).normalize();
@@ -1039,8 +1059,6 @@ pub fn pathFillConvex(color: Color) !void {
     const clipr: ?Rect = if (bounds.clippedBy(clip_offset)) clip_offset else null;
 
     cw.backend.drawClippedTriangles(null, vtx.items, idx.items, clipr);
-
-    cw.path.clearAndFree();
 }
 
 pub const EndCapStyle = enum {
@@ -1048,82 +1066,77 @@ pub const EndCapStyle = enum {
     square,
 };
 
-/// Stroke the current path and free the path.
-///
-/// * if closed_in, stroke includes from path end to path start.
+pub const PathStrokeOptions = struct {
+    /// true => Render this after normal drawing on that subwindow.  Useful for
+    /// debugging on cross-gui drawing.
+    after: bool = false,
+
+    /// true => Stroke includes from path end to path start.
+    closed: bool = false,
+
+    endcap_style: EndCapStyle = .none,
+};
+
+/// Stroke path as a series of line segments.  See Rect.stroke().
 ///
 /// Only valid between dvui.Window.begin() and end().
-///
-/// If you want to stroke a path on top of normal drawing, see pathStrokeAfter().
-pub fn pathStroke(closed_in: bool, thickness: f32, endcap_style: EndCapStyle, col: Color) !void {
-    try pathStrokeAfter(false, closed_in, thickness, endcap_style, col);
-}
-
-/// Stroke the current path and free the path, but render it after normal
-/// drawing on that subwindow (when after is true).  This is useful for
-/// debugging or cross-gui drawing (like an arrow pointing to a widget).
-///
-/// Only valid between dvui.Window.begin() and end().
-pub fn pathStrokeAfter(after: bool, closed_in: bool, thickness: f32, endcap_style: EndCapStyle, col: Color) !void {
-    const cw = currentWindow();
-
-    if (cw.path.items.len == 0) {
+pub fn pathStroke(path: []const Point, thickness: f32, color: Color, opts: PathStrokeOptions) !void {
+    if (path.len == 0) {
         return;
     }
 
-    if (after or !cw.render_target.rendering) {
-        var path_copy = std.ArrayList(Point).init(cw.arena());
-        try path_copy.appendSlice(cw.path.items);
-        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .pathStroke = .{ .path = path_copy, .closed = closed_in, .thickness = thickness, .endcap_style = endcap_style, .color = col } } };
+    const cw = currentWindow();
+
+    if (opts.after or !cw.render_target.rendering) {
+        const path_copy = try cw.arena().dupe(Point, path);
+        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .pathStroke = .{ .path = path_copy, .closed = opts.closed, .thickness = thickness, .endcap_style = opts.endcap_style, .color = color } } };
 
         var sw = cw.subwindowCurrent();
-        if (after) {
+        if (opts.after) {
             try sw.render_cmds_after.append(cmd);
         } else {
             try sw.render_cmds.append(cmd);
         }
 
-        cw.path.clearAndFree();
         return;
     }
 
-    try pathStrokeRaw(closed_in, thickness, endcap_style, col);
+    try pathStrokeRaw(path, thickness, color, opts.closed, opts.endcap_style);
 }
 
-pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle, color: Color) !void {
-    const cw = currentWindow();
-
+pub fn pathStrokeRaw(path: []const Point, thickness: f32, color: Color, closed_in: bool, endcap_style: EndCapStyle) !void {
     if (dvui.clipGet().empty()) {
-        cw.path.clearAndFree();
         return;
     }
 
-    if (cw.path.items.len == 1) {
+    const cw = currentWindow();
+
+    if (path.len == 1) {
         // draw a circle with radius thickness at that point
-        const center = cw.path.items[0].diff(cw.render_target.offset);
+        const center = path[0].diff(cw.render_target.offset);
 
-        // remove old path so we don't have a center point
-        cw.path.clearAndFree();
+        var tempPath: std.ArrayList(Point) = .init(cw.arena());
+        defer tempPath.deinit();
 
-        try pathAddArc(center, thickness, math.pi * 2.0, 0, true);
-        try pathFillConvex(color);
-        cw.path.clearAndFree();
+        try pathAddArc(&tempPath, center, thickness, math.pi * 2.0, 0, true);
+        try pathFillConvex(tempPath.items, color);
+
         return;
     }
 
     var closed: bool = closed_in;
-    if (cw.path.items.len == 2) {
+    if (path.len == 2) {
         // a single segment can't be closed
         closed = false;
     }
 
-    var vtx_count = cw.path.items.len * 4;
+    var vtx_count = path.len * 4;
     if (!closed) {
         vtx_count += 4;
     }
     var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), vtx_count);
     defer vtx.deinit();
-    var idx_count = (cw.path.items.len - 1) * 18;
+    var idx_count = (path.len - 1) * 18;
     if (closed) {
         idx_count += 18;
     } else {
@@ -1132,7 +1145,7 @@ pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle,
     var idx = try std.ArrayList(u16).initCapacity(cw.arena(), idx_count);
     defer idx.deinit();
     const col = color.alphaMultiply();
-    const col_trans = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+    const col_trans = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     var bounds = Rect{}; // w and h are maxx and maxy for now
     bounds.x = std.math.floatMax(f32);
@@ -1143,13 +1156,13 @@ pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle,
     const aa_size = 1.0;
     var vtx_start: usize = 0;
     var i: usize = 0;
-    while (i < cw.path.items.len) : (i += 1) {
-        const ai = (i + cw.path.items.len - 1) % cw.path.items.len;
-        const bi = i % cw.path.items.len;
-        const ci = (i + 1) % cw.path.items.len;
-        const aa = cw.path.items[ai].diff(cw.render_target.offset);
-        var bb = cw.path.items[bi].diff(cw.render_target.offset);
-        const cc = cw.path.items[ci].diff(cw.render_target.offset);
+    while (i < path.len) : (i += 1) {
+        const ai = (i + path.len - 1) % path.len;
+        const bi = i % path.len;
+        const ci = (i + 1) % path.len;
+        const aa = path[ai].diff(cw.render_target.offset);
+        var bb = path[bi].diff(cw.render_target.offset);
+        const cc = path[ci].diff(cw.render_target.offset);
 
         // the amount to move from bb to the edge of the line
         var halfnorm: Point = undefined;
@@ -1157,7 +1170,7 @@ pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle,
         var v: Vertex = undefined;
         var diffab: Point = undefined;
 
-        if (!closed and ((i == 0) or ((i + 1) == cw.path.items.len))) {
+        if (!closed and ((i == 0) or ((i + 1) == path.len))) {
             if (i == 0) {
                 const diffbc = Point.diff(bb, cc).normalize();
                 // rotate by 90 to get normal
@@ -1206,7 +1219,7 @@ pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle,
                 try idx.append(@as(u16, @intCast(1)));
                 try idx.append(@as(u16, @intCast(vtx_start + 2 + 1)));
                 try idx.append(@as(u16, @intCast(vtx_start + 2)));
-            } else if ((i + 1) == cw.path.items.len) {
+            } else if ((i + 1) == path.len) {
                 diffab = Point.diff(aa, bb).normalize();
                 // rotate by 90 to get normal
                 halfnorm = Point{ .x = diffab.y / 2, .y = (-diffab.x) / 2 };
@@ -1279,7 +1292,7 @@ pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle,
         bounds.h = @max(bounds.h, v.pos.y);
 
         // triangles must be counter-clockwise (y going down) to avoid backface culling
-        if (closed or ((i + 1) != cw.path.items.len)) {
+        if (closed or ((i + 1) != path.len)) {
             // indexes for fill
             try idx.append(@as(u16, @intCast(vtx_start + bi * 4)));
             try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
@@ -1306,7 +1319,7 @@ pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle,
             try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
             try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 3)));
             try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 2)));
-        } else if (!closed and (i + 1) == cw.path.items.len) {
+        } else if (!closed and (i + 1) == path.len) {
             // add 2 extra vertexes for endcap fringe
             v.pos.x = bb.x - halfnorm.x * (thickness + aa_size) - diffab.x * aa_size;
             v.pos.y = bb.y - halfnorm.y * (thickness + aa_size) - diffab.y * aa_size;
@@ -1353,8 +1366,6 @@ pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle,
     const clipr: ?Rect = if (bounds.clippedBy(clip_offset)) clip_offset else null;
 
     cw.backend.drawClippedTriangles(null, vtx.items, idx.items, clipr);
-
-    cw.path.clearAndFree();
 }
 
 pub fn subwindowAdd(id: u32, rect: Rect, rect_pixels: Rect, modal: bool, stay_above_parent_window: ?u32) !void {
@@ -1542,11 +1553,9 @@ pub fn mouseTotalMotion() Point {
     return Point.diff(cw.mouse_pt, cw.mouse_pt_prev);
 }
 
-/// Pass a widget ID for that widget to receive all mouse events (wheel events
-/// still filtered normally).
-///
-/// To keep mouse capture, must call captureMouseMaintain() each frame, and can
-/// call it every frame regardless of capture.
+/// Pass a widget ID for that widget to receive all mouse events (meaning
+/// eventMatch() returns true for this id and false for all others).  Wheel
+/// events still filtered normally.
 ///
 /// Only valid between dvui.Window.begin() and end().
 pub fn captureMouse(id: ?u32) void {
@@ -1558,7 +1567,7 @@ pub fn captureMouse(id: ?u32) void {
 }
 
 /// If the widget ID passed has mouse capture, this maintains that capture for
-/// the next frame.
+/// the next frame.  This is usually called for you in WidgetData.init().
 ///
 /// This can be called every frame regardless of capture.
 ///
@@ -1858,17 +1867,21 @@ pub fn minSize(id: u32, min_size: Size) Size {
     return size;
 }
 
-/// Make a unique id from src and id_extra, without a parent widget.  This is
-/// how the initial parent widget id is created, and also toasts and dialogs
-/// from other threads.
+/// Make a unique id from src and id_extra, possibly starting with start
+/// (usually a parent widget id).  This is how the initial parent widget id is
+/// created, and also toasts and dialogs from other threads.
 ///
-/// See Widget.extendId() which does similar but on top of a parent id.
+/// See Widget.extendId() which calls this with the widget id as start.
 ///
 /// dvui.parentGet().extendId(@src(), id_extra) is how new widgets get their
 /// id, and can be used to make a unique id without making a widget.
-pub fn hashSrc(src: std.builtin.SourceLocation, id_extra: usize) u32 {
+pub fn hashSrc(start: ?u32, src: std.builtin.SourceLocation, id_extra: usize) u32 {
     var hash = fnv.init();
-    hash.update(src.file);
+    if (start) |s| {
+        hash.value = s;
+    }
+    hash.update(std.mem.asBytes(&src.module.ptr));
+    hash.update(std.mem.asBytes(&src.file.ptr));
     hash.update(std.mem.asBytes(&src.line));
     hash.update(std.mem.asBytes(&src.column));
     hash.update(std.mem.asBytes(&id_extra));
@@ -1912,18 +1925,18 @@ pub fn dataSetSlice(win: ?*Window, id: u32, key: []const u8, data: anytype) void
 /// entries that you want to fill in after.
 pub fn dataSetSliceCopies(win: ?*Window, id: u32, key: []const u8, data: anytype, num_copies: usize) void {
     const dt = @typeInfo(@TypeOf(data));
-    if (dt == .Pointer and dt.Pointer.size == .Slice) {
-        if (dt.Pointer.sentinel) |s| {
-            dataSetAdvanced(win, id, key, @as([:@as(*const dt.Pointer.child, @alignCast(@ptrCast(s))).*]dt.Pointer.child, @constCast(data)), true, num_copies);
+    if (dt == .pointer and dt.pointer.size == .slice) {
+        if (dt.pointer.sentinel()) |s| {
+            dataSetAdvanced(win, id, key, @as([:s]dt.pointer.child, @constCast(data)), true, num_copies);
         } else {
-            dataSetAdvanced(win, id, key, @as([]dt.Pointer.child, @constCast(data)), true, num_copies);
+            dataSetAdvanced(win, id, key, @as([]dt.pointer.child, @constCast(data)), true, num_copies);
         }
-    } else if (dt == .Pointer and dt.Pointer.size == .One and @typeInfo(dt.Pointer.child) == .Array) {
-        const child_type = @typeInfo(dt.Pointer.child);
-        if (child_type.Array.sentinel) |s| {
-            dataSetAdvanced(win, id, key, @as([:@as(*const child_type.Array.child, @alignCast(@ptrCast(s))).*]child_type.Array.child, @constCast(data)), true, num_copies);
+    } else if (dt == .pointer and dt.pointer.size == .one and @typeInfo(dt.pointer.child) == .array) {
+        const child_type = @typeInfo(dt.pointer.child);
+        if (child_type.array.sentinel()) |s| {
+            dataSetAdvanced(win, id, key, @as([:s]child_type.array.child, @constCast(data)), true, num_copies);
         } else {
-            dataSetAdvanced(win, id, key, @as([]child_type.Array.child, @constCast(data)), true, num_copies);
+            dataSetAdvanced(win, id, key, @as([]child_type.array.child, @constCast(data)), true, num_copies);
         }
     } else {
         @compileError("dataSetSlice needs a slice or pointer to array, given " ++ @typeName(@TypeOf(data)));
@@ -2048,15 +2061,15 @@ pub inline fn dataGetPtr(win: ?*Window, id: u32, key: []const u8, comptime T: ty
 /// id/key combination.
 pub fn dataGetSlice(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?T {
     const dt = @typeInfo(T);
-    if (dt != .Pointer or dt.Pointer.size != .Slice) {
+    if (dt != .pointer or dt.pointer.size != .slice) {
         @compileError("dataGetSlice needs a slice, given " ++ @typeName(T));
     }
 
     if (dataGetInternal(win, id, key, T, true)) |bytes| {
-        if (dt.Pointer.sentinel) |sentinel| {
-            return @as([:@as(*const dt.Pointer.child, @alignCast(@ptrCast(sentinel))).*]align(@alignOf(dt.Pointer.child)) dt.Pointer.child, @alignCast(@ptrCast(std.mem.bytesAsSlice(dt.Pointer.child, bytes[0 .. bytes.len - @sizeOf(dt.Pointer.child)]))));
+        if (dt.pointer.sentinel()) |sentinel| {
+            return @as([:sentinel]align(@alignOf(dt.pointer.child)) dt.pointer.child, @alignCast(@ptrCast(std.mem.bytesAsSlice(dt.pointer.child, bytes[0 .. bytes.len - @sizeOf(dt.pointer.child)]))));
         } else {
-            return @as([]align(@alignOf(dt.Pointer.child)) dt.Pointer.child, @alignCast(std.mem.bytesAsSlice(dt.Pointer.child, bytes)));
+            return @as([]align(@alignOf(dt.pointer.child)) dt.pointer.child, @alignCast(std.mem.bytesAsSlice(dt.pointer.child, bytes)));
         }
     } else {
         return null;
@@ -2076,7 +2089,7 @@ pub fn dataGetSlice(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?
 /// The returned slice points to internal storage, which will be freed after
 /// a frame where there is no call to any dataGet/dataSet functions for that
 /// id/key combination.
-pub fn dataGetSliceDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: []const @typeInfo(T).Pointer.child) T {
+pub fn dataGetSliceDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: []const @typeInfo(T).pointer.child) T {
     return dataGetSlice(win, id, key, T) orelse blk: {
         dataSetSlice(win, id, key, default);
         break :blk dataGetSlice(win, id, key, T).?;
@@ -2518,7 +2531,11 @@ pub const Window = struct {
 
         pub fn free(self: *const SavedData, allocator: std.mem.Allocator) void {
             if (self.data.len != 0) {
-                allocator.rawFree(self.data, @ctz(self.alignment), @returnAddress());
+                allocator.rawFree(
+                    self.data,
+                    std.mem.Alignment.fromByteUnits(self.alignment),
+                    @returnAddress(),
+                );
             }
         }
     };
@@ -2612,8 +2629,7 @@ pub const Window = struct {
 
     gpa: std.mem.Allocator,
     _arena: std.heap.ArenaAllocator,
-    texture_trash: std.ArrayList(*anyopaque) = undefined,
-    path: std.ArrayList(Point) = undefined,
+    texture_trash: std.ArrayList(Texture) = undefined,
     render_target: RenderTarget = .{ .texture = null, .offset = .{} },
 
     debug_window_show: bool = false,
@@ -2649,7 +2665,7 @@ pub const Window = struct {
         backend_ctx: Backend,
         init_opts: InitOptions,
     ) !Self {
-        const hashval = hashSrc(src, init_opts.id_extra);
+        const hashval = hashSrc(null, src, init_opts.id_extra);
 
         var self = Self{
             .gpa = gpa,
@@ -2677,7 +2693,7 @@ pub const Window = struct {
         try self.themes.putNoClobber("Adwaita Light", @import("themes/Adwaita.zig").light);
         try self.themes.putNoClobber("Adwaita Dark", @import("themes/Adwaita.zig").dark);
 
-        inline for (@typeInfo(Theme.QuickTheme.builtin).Struct.decls) |decl| {
+        inline for (@typeInfo(Theme.QuickTheme.builtin).@"struct".decls) |decl| {
             const quick_theme = Theme.QuickTheme.fromString(self.arena(), @field(Theme.QuickTheme.builtin, decl.name)) catch {
                 @panic("Failure loading builtin theme. This is a problem with DVUI.");
             };
@@ -2803,10 +2819,13 @@ pub const Window = struct {
         const winSize = self.backend.windowSize();
         const pxSize = self.backend.pixelSize();
         self.content_scale = self.backend.contentScale();
-        const total_scale = self.content_scale * pxSize.w / winSize.w;
-        if (total_scale >= 2.0) {
-            self.snap_to_pixels = false;
-        }
+
+        // Even on hidpi screens I see slight flattening of the sides of glyphs
+        // when snap_to_pixels is false, so we are going to default on for now.
+        //const total_scale = self.content_scale * pxSize.w / winSize.w;
+        //if (total_scale >= 2.0) {
+        //    self.snap_to_pixels = false;
+        //}
 
         log.info("window logical {} pixels {} natural scale {d} initial content scale {d} snap_to_pixels {}\n", .{ winSize, pxSize, pxSize.w / winSize.w, self.content_scale, self.snap_to_pixels });
 
@@ -3115,12 +3134,12 @@ pub const Window = struct {
         return ret;
     }
 
-    /// Add a mouse wheel event.  Positive ticks means scrolling up.
+    /// Add a mouse wheel event.  Positive ticks means scrolling up / scrolling left.
     ///
     /// This can be called outside begin/end.  You should add all the events
     /// for a frame either before begin() or just after begin() and before
     /// calling normal dvui widgets.  end() clears the event list.
-    pub fn addEventMouseWheel(self: *Self, ticks: f32) !bool {
+    pub fn addEventMouseWheel(self: *Self, ticks: f32, dir: enums.Direction) !bool {
         self.positionMouseEventRemove();
 
         const winId = self.windowFor(self.mouse_pt);
@@ -3130,11 +3149,11 @@ pub const Window = struct {
         self.event_num += 1;
         try self.events.append(self.arena(), Event{ .num = self.event_num, .evt = .{
             .mouse = .{
-                .action = .wheel_y,
+                .action = if (dir == .vertical) .wheel_y else .wheel_x,
                 .button = .none,
                 .p = self.mouse_pt,
                 .floating_win = winId,
-                .data = .{ .wheel_y = ticks },
+                .data = if (dir == .vertical) .{ .wheel_y = ticks } else .{ .wheel_x = ticks },
             },
         } });
 
@@ -3348,6 +3367,12 @@ pub const Window = struct {
         self.previous_window = current_window;
         current_window = self;
 
+        if (self.previous_window) |pw| {
+            if (pw == self) {
+                log.err("Window.begin() window is already the current_window - ensure Window.end() is called for each Window.begin()\n", .{});
+            }
+        }
+
         self.cursor_requested = .arrow;
         self.text_input_rect = null;
         self.debug_info_name_rect = "";
@@ -3359,8 +3384,7 @@ pub const Window = struct {
             self.debug_under_mouse_info = "";
         }
 
-        self.texture_trash = std.ArrayList(*anyopaque).init(larena);
-        self.path = std.ArrayList(Point).init(larena);
+        self.texture_trash = std.ArrayList(Texture).init(larena);
 
         {
             var i: usize = 0;
@@ -3515,6 +3539,9 @@ pub const Window = struct {
         self.captured_last_frame = false;
 
         self.wd.parent = self.widget();
+
+        // Window's wd is kept frame to frame, so manually reset the cache.
+        self.wd.rect_scale_cache = null;
         try self.wd.register();
 
         self.next_widget_ypos = self.wd.rect.y;
@@ -3532,9 +3559,10 @@ pub const Window = struct {
     }
 
     fn positionMouseEventRemove(self: *Self) void {
-        const e = self.events.pop();
-        if (e.evt != .mouse or e.evt.mouse.action != .position) {
-            log.err("positionMouseEventRemove removed a non-mouse or non-position event\n", .{});
+        if (self.events.pop()) |e| {
+            if (e.evt != .mouse or e.evt.mouse.action != .position) {
+                log.err("positionMouseEventRemove removed a non-mouse or non-position event\n", .{});
+            }
         }
     }
 
@@ -3633,14 +3661,12 @@ pub const Window = struct {
                     try renderTexture(t.tex, t.rs, t.opts);
                 },
                 .pathFillConvex => |pf| {
-                    try self.path.appendSlice(pf.path.items);
-                    try pathFillConvex(pf.color);
-                    pf.path.deinit();
+                    try pathFillConvex(pf.path, pf.color);
+                    self.arena().free(pf.path);
                 },
                 .pathStroke => |ps| {
-                    try self.path.appendSlice(ps.path.items);
-                    try pathStrokeRaw(ps.closed, ps.thickness, ps.endcap_style, ps.color);
-                    ps.path.deinit();
+                    try pathStrokeRaw(ps.path, ps.thickness, ps.color, ps.closed, ps.endcap_style);
+                    self.arena().free(ps.path);
                 },
             }
         }
@@ -3655,8 +3681,8 @@ pub const Window = struct {
         var bytes: []const u8 = undefined;
         if (copy_slice) {
             bytes = std.mem.sliceAsBytes(data_in);
-            if (dt.Pointer.sentinel != null) {
-                bytes.len += @sizeOf(dt.Pointer.child);
+            if (dt.pointer.sentinel() != null) {
+                bytes.len += @sizeOf(dt.pointer.child);
             }
         } else {
             bytes = std.mem.asBytes(&data_in);
@@ -3664,7 +3690,7 @@ pub const Window = struct {
 
         const alignment = comptime blk: {
             if (copy_slice) {
-                break :blk dt.Pointer.alignment;
+                break :blk dt.pointer.alignment;
             } else {
                 break :blk @alignOf(@TypeOf(data_in));
             }
@@ -3954,14 +3980,14 @@ pub const Window = struct {
         var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .background = false });
         defer scroll.deinit();
 
-        var iter = std.mem.split(u8, self.debug_under_mouse_info, "\n");
+        var iter = std.mem.splitScalar(u8, self.debug_under_mouse_info, '\n');
         var i: usize = 0;
         while (iter.next()) |line| : (i += 1) {
             if (line.len > 0) {
                 var hbox = try dvui.box(@src(), .horizontal, .{ .id_extra = i });
                 defer hbox.deinit();
 
-                if (try dvui.buttonIcon(@src(), "find", entypo.magnifying_glass, .{}, .{ .min_size_content = .{ .h = 12 } })) {
+                if (try dvui.buttonIcon(@src(), "find", entypo.magnifying_glass, .{}, .{})) {
                     self.debug_widget_id = std.fmt.parseInt(u32, std.mem.sliceTo(line, ' '), 16) catch 0;
                 }
 
@@ -4231,7 +4257,7 @@ pub const IdMutex = struct {
 pub fn dialogAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize, display: DialogDisplayFn) !IdMutex {
     if (win) |w| {
         // we are being called from non gui thread
-        const id = hashSrc(src, id_extra);
+        const id = hashSrc(null, src, id_extra);
         const mutex = try w.dialogAdd(id, display);
         refresh(win, @src(), id); // will wake up gui thread
         return .{ .id = id, .mutex = mutex };
@@ -4390,7 +4416,7 @@ pub const DialogNativeFileOptions = struct {
 /// Not thread safe, but can be used from any thread.
 ///
 /// Returned string is created by passed allocator.  Not implemented for web (returns null).
-pub fn dialogNativeFileOpen(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[]const u8 {
+pub fn dialogNativeFileOpen(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[:0]const u8 {
     if (wasm) {
         return null;
     }
@@ -4404,7 +4430,7 @@ pub fn dialogNativeFileOpen(alloc: std.mem.Allocator, opts: DialogNativeFileOpti
 /// Not thread safe, but can be used from any thread.
 ///
 /// Returned slice and strings are created by passed allocator.  Not implemented for web (returns null).
-pub fn dialogNativeFileOpenMultiple(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[][]const u8 {
+pub fn dialogNativeFileOpenMultiple(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[][:0]const u8 {
     if (wasm) {
         return null;
     }
@@ -4418,7 +4444,7 @@ pub fn dialogNativeFileOpenMultiple(alloc: std.mem.Allocator, opts: DialogNative
 /// Not thread safe, but can be used from any thread.
 ///
 /// Returned string is created by passed allocator.  Not implemented for web (returns null).
-pub fn dialogNativeFileSave(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[]const u8 {
+pub fn dialogNativeFileSave(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[:0]const u8 {
     if (wasm) {
         return null;
     }
@@ -4426,7 +4452,7 @@ pub fn dialogNativeFileSave(alloc: std.mem.Allocator, opts: DialogNativeFileOpti
     return dialogNativeFileInternal(false, false, alloc, opts);
 }
 
-fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc: std.mem.Allocator, opts: DialogNativeFileOptions) if (multiple) error{OutOfMemory}!?[][]const u8 else error{OutOfMemory}!?[]const u8 {
+fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc: std.mem.Allocator, opts: DialogNativeFileOptions) if (multiple) error{OutOfMemory}!?[][:0]const u8 else error{OutOfMemory}!?[:0]const u8 {
     var backing: [500]u8 = undefined;
     var buf: []u8 = &backing;
 
@@ -4477,8 +4503,8 @@ fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc:
         }
     }
 
-    var result: if (multiple) ?[][]const u8 else ?[]const u8 = null;
-    const tfd_ret = blk: {
+    var result: if (multiple) ?[][:0]const u8 else ?[:0]const u8 = null;
+    const tfd_ret: [*c]const u8 = blk: {
         if (open) {
             break :blk dvui.c.tinyfd_openFileDialog(title, path, @intCast(filter_count), filters, filter_desc, if (multiple) 1 else 0);
         } else {
@@ -4488,17 +4514,17 @@ fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc:
 
     if (tfd_ret) |r| {
         if (multiple) {
-            const r_slice = std.mem.sliceTo(r, 0);
+            const r_slice = std.mem.span(r);
             const num = std.mem.count(u8, r_slice, "|") + 1;
-            result = try alloc.alloc([]const u8, num);
+            result = try alloc.alloc([:0]const u8, num);
             var it = std.mem.splitScalar(u8, r_slice, '|');
             var i: usize = 0;
             while (it.next()) |f| {
-                result.?[i] = try alloc.dupe(u8, f);
+                result.?[i] = try alloc.dupeZ(u8, f);
                 i += 1;
             }
         } else {
-            result = try alloc.dupe(u8, std.mem.sliceTo(r, 0));
+            result = try alloc.dupeZ(u8, std.mem.span(r));
         }
     }
 
@@ -4581,7 +4607,7 @@ pub const Toast = struct {
 pub fn toastAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize, subwindow_id: ?u32, display: DialogDisplayFn, timeout: ?i32) !IdMutex {
     if (win) |w| {
         // we are being called from non gui thread
-        const id = hashSrc(src, id_extra);
+        const id = hashSrc(null, src, id_extra);
         const mutex = try w.toastAdd(id, subwindow_id, display, timeout);
         refresh(win, @src(), id);
         return .{ .id = id, .mutex = mutex };
@@ -4968,9 +4994,7 @@ pub const TabsWidget = struct {
                     r.w -= 1.0;
                     r.y = @floor(r.y) - 0.5;
                 }
-                try dvui.pathAddPoint(r.bottomLeft());
-                try dvui.pathAddPoint(r.bottomRight());
-                try dvui.pathStroke(false, 1, .none, dvui.themeGet().color_border);
+                try dvui.pathStroke(&.{ r.bottomLeft(), r.bottomRight() }, 1, dvui.themeGet().color_border, .{});
             },
             .vertical => {
                 if (dvui.currentWindow().snap_to_pixels) {
@@ -4978,9 +5002,7 @@ pub const TabsWidget = struct {
                     r.h -= 1.0;
                     r.x = @floor(r.x) - 0.5;
                 }
-                try dvui.pathAddPoint(r.topRight());
-                try dvui.pathAddPoint(r.bottomRight());
-                try dvui.pathStroke(false, 1, .none, dvui.themeGet().color_border);
+                try dvui.pathStroke(&.{ r.topRight(), r.bottomRight() }, 1, dvui.themeGet().color_border, .{});
             },
         }
     }
@@ -5040,30 +5062,36 @@ pub const TabsWidget = struct {
 
             switch (self.init_options.dir) {
                 .horizontal => {
-                    try dvui.pathAddPoint(rs.r.bottomRight());
+                    var path: std.ArrayList(Point) = .init(currentWindow().arena());
+                    defer path.deinit();
+
+                    try path.append(rs.r.bottomRight());
 
                     const tr = Point{ .x = rs.r.x + rs.r.w - cr.y, .y = rs.r.y + cr.y };
-                    try dvui.pathAddArc(tr, cr.y, math.pi * 2.0, math.pi * 1.5, false);
+                    try dvui.pathAddArc(&path, tr, cr.y, math.pi * 2.0, math.pi * 1.5, false);
 
                     const tl = Point{ .x = rs.r.x + cr.x, .y = rs.r.y + cr.x };
-                    try dvui.pathAddArc(tl, cr.x, math.pi * 1.5, math.pi, false);
+                    try dvui.pathAddArc(&path, tl, cr.x, math.pi * 1.5, math.pi, false);
 
-                    try dvui.pathAddPoint(rs.r.bottomLeft());
+                    try path.append(rs.r.bottomLeft());
 
-                    try dvui.pathStrokeAfter(true, false, 2 * rs.s, .none, self.options.color(.accent));
+                    try dvui.pathStroke(path.items, 2 * rs.s, self.options.color(.accent), .{ .after = true });
                 },
                 .vertical => {
-                    try dvui.pathAddPoint(rs.r.topRight());
+                    var path: std.ArrayList(Point) = .init(currentWindow().arena());
+                    defer path.deinit();
+
+                    try path.append(rs.r.topRight());
 
                     const tl = Point{ .x = rs.r.x + cr.x, .y = rs.r.y + cr.x };
-                    try dvui.pathAddArc(tl, cr.x, math.pi * 1.5, math.pi, false);
+                    try dvui.pathAddArc(&path, tl, cr.x, math.pi * 1.5, math.pi, false);
 
                     const bl = Point{ .x = rs.r.x + cr.h, .y = rs.r.y + rs.r.h - cr.h };
-                    try dvui.pathAddArc(bl, cr.h, math.pi, math.pi * 0.5, false);
+                    try dvui.pathAddArc(&path, bl, cr.h, math.pi, math.pi * 0.5, false);
 
-                    try dvui.pathAddPoint(rs.r.bottomRight());
+                    try path.append(rs.r.bottomRight());
 
-                    try dvui.pathStrokeAfter(true, false, 2 * rs.s, .none, self.options.color(.accent));
+                    try dvui.pathStroke(path.items, 2 * rs.s, self.options.color(.accent), .{ .after = true });
                 },
             }
         }
@@ -5111,11 +5139,10 @@ pub fn expander(src: std.builtin.SourceLocation, label_str: []const u8, init_opt
     defer bcbox.deinit();
     try bcbox.install();
     try bcbox.drawBackground();
-    const size = options.fontGet().textHeight();
     if (expanded) {
-        try icon(@src(), "down_arrow", entypo.triangle_down, .{ .gravity_y = 0.5, .min_size_content = .{ .h = size } });
+        try icon(@src(), "down_arrow", entypo.triangle_down, .{ .gravity_y = 0.5 });
     } else {
-        try icon(@src(), "right_arrow", entypo.triangle_right, .{ .gravity_y = 0.5, .min_size_content = .{ .h = size } });
+        try icon(@src(), "right_arrow", entypo.triangle_right, .{ .gravity_y = 0.5 });
     }
     try labelNoFmt(@src(), label_str, options.strip());
 
@@ -5255,6 +5282,7 @@ pub fn spacer(src: std.builtin.SourceLocation, size: Size, opts: Options) !Widge
     const defaults: Options = .{ .name = "Spacer" };
     var wd = WidgetData.init(src, .{}, defaults.override(opts).override(.{ .min_size_content = size }));
     try wd.register();
+    try wd.borderAndBackground(.{});
     wd.minSizeSetAndRefresh();
     wd.minSizeReportToParent();
     return wd;
@@ -5296,9 +5324,12 @@ pub fn spinner(src: std.builtin.SourceLocation, opts: Options) !void {
         animation(wd.id, "_angle", anim);
     }
 
+    var path: std.ArrayList(dvui.Point) = .init(dvui.currentWindow().arena());
+    defer path.deinit();
+
     const center = Point{ .x = r.x + r.w / 2, .y = r.y + r.h / 2 };
-    try pathAddArc(center, @min(r.w, r.h) / 3, angle, 0, false);
-    try pathStroke(false, 3.0 * rs.s, .none, options.color(.text));
+    try pathAddArc(&path, center, @min(r.w, r.h) / 3, angle, 0, false);
+    try pathStroke(path.items, 3.0 * rs.s, options.color(.text), .{});
 }
 
 pub fn scale(src: std.builtin.SourceLocation, scale_in: f32, opts: Options) !*ScaleWidget {
@@ -5341,7 +5372,7 @@ pub fn menuItemIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes
 
     // pass min_size_content through to the icon so that it will figure out the
     // min width based on the height
-    var iconopts = opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content });
+    var iconopts = opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio });
 
     var ret: ?Rect = null;
     if (mi.activeRect()) |r| {
@@ -5521,12 +5552,15 @@ pub fn image(src: std.builtin.SourceLocation, name: []const u8, image_bytes: []c
 pub fn debugFontAtlases(src: std.builtin.SourceLocation, opts: Options) !void {
     const cw = currentWindow();
 
-    var size = Size{};
+    var width: u32 = 0;
+    var height: u32 = 0;
     var it = cw.font_cache.iterator();
     while (it.next()) |kv| {
-        size.w = @max(size.w, kv.value_ptr.texture_atlas_size.w);
-        size.h += kv.value_ptr.texture_atlas_size.h;
+        width = @max(width, kv.value_ptr.texture_atlas.width);
+        height += kv.value_ptr.texture_atlas.height;
     }
+
+    var size: Size = .{ .w = @floatFromInt(width), .h = @floatFromInt(height) };
 
     // this size is a pixel size, so inverse scale to get natural pixels
     const ss = parentGet().screenRectScale(Rect{}).s;
@@ -5587,8 +5621,8 @@ pub fn buttonIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: 
     bw.processEvents();
     try bw.drawBackground();
 
-    // pass min_size_content through to the icon so that it will figure out the
-    // min width based on the height
+    // When someone passes min_size_content to buttonIcon, they want the icon
+    // to be that size, so we pass it through.
     try icon(@src(), name, tvg_bytes, opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio }));
 
     const click = bw.clicked();
@@ -5715,8 +5749,7 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
         },
     }
     if (b.data().visible()) {
-        try pathAddRect(part, options.corner_radiusGet().scale(trackrs.s));
-        try pathFillConvex(options.color(.accent));
+        try part.fill(options.corner_radiusGet().scale(trackrs.s), options.color(.accent));
     }
 
     switch (dir) {
@@ -5730,8 +5763,7 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
         },
     }
     if (b.data().visible()) {
-        try pathAddRect(part, options.corner_radiusGet().scale(trackrs.s));
-        try pathFillConvex(options.color(.fill));
+        try part.fill(options.corner_radiusGet().scale(trackrs.s), options.color(.fill));
     }
 
     const knobRect = switch (dir) {
@@ -6050,8 +6082,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
             const knobRect = Rect{ .x = (br.w - knobsize) * math.clamp(how_far, 0, 1), .w = knobsize, .h = knobsize };
             const knobrs = b.widget().screenRectScale(knobRect);
 
-            try pathAddRect(knobrs.r, options.corner_radiusGet().scale(knobrs.s));
-            try pathFillConvex(options.color(.fill_press));
+            try knobrs.r.fill(options.corner_radiusGet().scale(knobrs.s), options.color(.fill_press));
         }
 
         try label(@src(), label_fmt orelse "{d:.3}", .{init_opts.value.*}, options.strip().override(.{ .expand = .both, .gravity_x = 0.5, .gravity_y = 0.5 }));
@@ -6072,9 +6103,9 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
 }
 
 fn isF32Slice(comptime ptr: std.builtin.Type.Pointer, comptime child_info: std.builtin.Type) bool {
-    const is_slice = ptr.size == .Slice;
+    const is_slice = ptr.size == .slice;
     const holds_f32 = switch (child_info) {
-        .Float => |f| f.bits == 32,
+        .float => |f| f.bits == 32,
         else => false,
     };
 
@@ -6091,7 +6122,7 @@ fn isF32Slice(comptime ptr: std.builtin.Type.Pointer, comptime child_info: std.b
 
 fn checkAndCastDataPtr(comptime num_components: u32, value: anytype) *[num_components]f32 {
     switch (@typeInfo(@TypeOf(value))) {
-        .Pointer => |ptr| {
+        .pointer => |ptr| {
             const child_info = @typeInfo(ptr.child);
             const is_f32_slice = comptime isF32Slice(ptr, child_info);
 
@@ -6102,8 +6133,8 @@ fn checkAndCastDataPtr(comptime num_components: u32, value: anytype) *[num_compo
             // If not slice, need to check for arrays and vectors.
             // Need to also check the length.
             const data_len = switch (child_info) {
-                .Vector => |vec| vec.len,
-                .Array => |arr| arr.len,
+                .vector => |vec| vec.len,
+                .array => |arr| arr.len,
                 else => @compileError("Must supply a pointer to a vector or array!"),
             };
 
@@ -6130,7 +6161,7 @@ pub fn sliderVector(line: std.builtin.SourceLocation, comptime fmt: []const u8, 
 
     var any_changed = false;
     inline for (0..num_components) |i| {
-        const component_opts = .{
+        const component_opts = dvui.SliderEntryInitOptions{
             .value = &data_arr[i],
             .min = init_opts.min,
             .max = init_opts.max,
@@ -6163,8 +6194,7 @@ pub fn progress(src: std.builtin.SourceLocation, init_opts: Progress_InitOptions
 
     const rs = b.data().contentRectScale();
 
-    try pathAddRect(rs.r, options.corner_radiusGet().scale(rs.s));
-    try pathFillConvex(options.color(.fill));
+    try rs.r.fill(options.corner_radiusGet().scale(rs.s), options.color(.fill));
 
     const perc = @max(0, @min(1, init_opts.percent));
     if (perc == 0) return;
@@ -6180,8 +6210,7 @@ pub fn progress(src: std.builtin.SourceLocation, init_opts: Progress_InitOptions
             part.h = rs.r.h - h;
         },
     }
-    try pathAddRect(part, options.corner_radiusGet().scale(rs.s));
-    try pathFillConvex(options.color(.accent));
+    try part.fill(options.corner_radiusGet().scale(rs.s), options.color(.accent));
 }
 
 pub var checkbox_defaults: Options = .{
@@ -6228,28 +6257,25 @@ pub fn checkbox(src: std.builtin.SourceLocation, target: *bool, label_str: ?[]co
 }
 
 pub fn checkmark(checked: bool, focused: bool, rs: RectScale, pressed: bool, hovered: bool, opts: Options) !void {
-    try pathAddRect(rs.r, opts.corner_radiusGet().scale(rs.s));
-    try pathFillConvex(opts.color(.border));
+    try rs.r.fill(opts.corner_radiusGet().scale(rs.s), opts.color(.border));
 
     if (focused) {
-        try pathAddRect(rs.r, opts.corner_radiusGet().scale(rs.s));
-        try pathStroke(true, 2 * rs.s, .none, opts.color(.accent));
+        try rs.r.stroke(opts.corner_radiusGet().scale(rs.s), 2 * rs.s, opts.color(.accent), .{});
+    }
+
+    var fill: Options.ColorAsk = .fill;
+    if (pressed) {
+        fill = .fill_press;
+    } else if (hovered) {
+        fill = .fill_hover;
     }
 
     var options = opts;
     if (checked) {
         options = opts.override(themeGet().style_accent);
-        try pathAddRect(rs.r.insetAll(0.5 * rs.s), opts.corner_radiusGet().scale(rs.s));
+        try rs.r.insetAll(0.5 * rs.s).fill(opts.corner_radiusGet().scale(rs.s), options.color(fill));
     } else {
-        try pathAddRect(rs.r.insetAll(rs.s), opts.corner_radiusGet().scale(rs.s));
-    }
-
-    if (pressed) {
-        try pathFillConvex(options.color(.fill_press));
-    } else if (hovered) {
-        try pathFillConvex(options.color(.fill_hover));
-    } else {
-        try pathFillConvex(options.color(.fill));
+        try rs.r.insetAll(rs.s).fill(opts.corner_radiusGet().scale(rs.s), options.color(fill));
     }
 
     if (checked) {
@@ -6264,10 +6290,12 @@ pub fn checkmark(checked: bool, focused: bool, rs: RectScale, pressed: bool, hov
 
         thick /= 1.5;
 
-        try pathAddPoint(Point{ .x = x - third, .y = y - third });
-        try pathAddPoint(Point{ .x = x, .y = y });
-        try pathAddPoint(Point{ .x = x + third * 2, .y = y - third * 2 });
-        try pathStroke(false, thick, .square, options.color(.text));
+        const path: []const Point = &.{
+            .{ .x = x - third, .y = y - third },
+            .{ .x = x, .y = y },
+            .{ .x = x + third * 2, .y = y - third * 2 },
+        };
+        try pathStroke(path, thick, options.color(.text), .{ .endcap_style = .square });
     }
 }
 
@@ -6314,35 +6342,32 @@ pub fn radio(src: std.builtin.SourceLocation, active: bool, label_str: ?[]const 
 }
 
 pub fn radioCircle(active: bool, focused: bool, rs: RectScale, pressed: bool, hovered: bool, opts: Options) !void {
-    try pathAddRect(rs.r, Rect.all(1000));
-    try pathFillConvex(opts.color(.border));
+    try rs.r.fill(Rect.all(1000), opts.color(.border));
 
     if (focused) {
-        try pathAddRect(rs.r, Rect.all(1000));
-        try pathStroke(true, 2 * rs.s, .none, opts.color(.accent));
+        try rs.r.stroke(Rect.all(1000), 2 * rs.s, opts.color(.accent), .{});
+    }
+
+    var fill: Options.ColorAsk = .fill;
+    if (pressed) {
+        fill = .fill_press;
+    } else if (hovered) {
+        fill = .fill_hover;
     }
 
     var options = opts;
     if (active) {
         options = opts.override(themeGet().style_accent);
-        try pathAddRect(rs.r.insetAll(0.5 * rs.s), Rect.all(1000));
+        try rs.r.insetAll(0.5 * rs.s).fill(Rect.all(1000), options.color(fill));
     } else {
-        try pathAddRect(rs.r.insetAll(rs.s), Rect.all(1000));
-    }
-
-    if (pressed) {
-        try pathFillConvex(options.color(.fill_press));
-    } else if (hovered) {
-        try pathFillConvex(options.color(.fill_hover));
-    } else {
-        try pathFillConvex(options.color(.fill));
+        try rs.r.insetAll(rs.s).fill(Rect.all(1000), options.color(fill));
     }
 
     if (active) {
         const thick = @max(1.0, rs.r.w / 6);
 
-        try pathAddPoint(Point{ .x = rs.r.x + rs.r.w / 2, .y = rs.r.y + rs.r.h / 2 });
-        try pathStroke(false, thick, .square, options.color(.text));
+        const p = Point{ .x = rs.r.x + rs.r.w / 2, .y = rs.r.y + rs.r.h / 2 };
+        try pathStroke(&.{p}, thick, options.color(.text), .{});
     }
 }
 
@@ -6408,11 +6433,11 @@ pub fn TextEntryNumberResult(comptime T: type) type {
 pub fn textEntryNumber(src: std.builtin.SourceLocation, comptime T: type, init_opts: TextEntryNumberInitOptions(T), opts: Options) !TextEntryNumberResult(T) {
     const base_filter = "1234567890";
     const filter = switch (@typeInfo(T)) {
-        .Int => |int| switch (int.signedness) {
+        .int => |int| switch (int.signedness) {
             .signed => base_filter ++ "+-",
             .unsigned => base_filter ++ "+",
         },
-        .Float => base_filter ++ "+-.e",
+        .float => base_filter ++ "+-.e",
         else => unreachable,
     };
 
@@ -6444,8 +6469,8 @@ pub fn textEntryNumber(src: std.builtin.SourceLocation, comptime T: type, init_o
     // validation
     const text = te.getText();
     const num = switch (@typeInfo(T)) {
-        .Int => std.fmt.parseInt(T, text, 10) catch null,
-        .Float => std.fmt.parseFloat(T, text) catch null,
+        .int => std.fmt.parseInt(T, text, 10) catch null,
+        .float => std.fmt.parseFloat(T, text) catch null,
         else => unreachable,
     };
 
@@ -6473,9 +6498,7 @@ pub fn textEntryNumber(src: std.builtin.SourceLocation, comptime T: type, init_o
 
     if (result.value != .Valid and (init_opts.value != null or result.value != .Empty)) {
         const rs = te.data().borderRectScale();
-        try dvui.pathAddRect(rs.r.outsetAll(1), te.data().options.corner_radiusGet());
-        const color = dvui.themeGet().color_err;
-        try dvui.pathStrokeAfter(true, true, 3 * rs.s, .none, color);
+        try rs.r.outsetAll(1).stroke(te.data().options.corner_radiusGet(), 3 * rs.s, dvui.themeGet().color_err, .{ .after = true });
     }
 
     // display min/max
@@ -6677,7 +6700,6 @@ pub fn renderText(opts: renderTextOptions) !void {
         }
 
         fce.texture_atlas = textureCreate(pixels.ptr, @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear);
-        fce.texture_atlas_size = size;
     }
 
     var vtx = std.ArrayList(Vertex).init(cw.arena());
@@ -6708,12 +6730,38 @@ pub fn renderText(opts: renderTextOptions) !void {
         sel = true;
     }
 
+    const atlas_size: Size = .{ .w = @floatFromInt(fce.texture_atlas.width), .h = @floatFromInt(fce.texture_atlas.height) };
+
     var bytes_seen: usize = 0;
     var utf8 = (try std.unicode.Utf8View.init(opts.text)).iterator();
+    var last_codepoint: u32 = 0;
+    var last_glyph_index: u32 = 0;
     while (utf8.nextCodepoint()) |codepoint| {
         const gi = try fce.glyphInfoGet(@as(u32, @intCast(codepoint)), opts.font.name);
 
-        // TODO: kerning
+        // kerning
+        if (last_codepoint != 0) {
+            if (useFreeType) {
+                if (last_glyph_index == 0) last_glyph_index = c.FT_Get_Char_Index(fce.face, last_codepoint);
+                const glyph_index: u32 = c.FT_Get_Char_Index(fce.face, codepoint);
+                var kern: c.FT_Vector = undefined;
+                FontCacheEntry.intToError(c.FT_Get_Kerning(fce.face, last_glyph_index, glyph_index, c.FT_KERNING_DEFAULT, &kern)) catch |err| {
+                    log.warn("renderText freetype error {!} trying to FT_Get_Kerning font {s} codepoints {d} {d}\n", .{ err, opts.font.name, last_codepoint, codepoint });
+                    return error.freetypeError;
+                };
+                last_glyph_index = glyph_index;
+
+                const kern_x: f32 = @as(f32, @floatFromInt(kern.x)) / 64.0;
+
+                x += kern_x;
+            } else {
+                const kern_adv: c_int = c.stbtt_GetCodepointKernAdvance(&fce.face, @as(c_int, @intCast(last_codepoint)), @as(c_int, @intCast(codepoint)));
+                const kern_x = fce.scaleFactor * @as(f32, @floatFromInt(kern_adv));
+
+                x += kern_x;
+            }
+        }
+        last_codepoint = codepoint;
 
         const nextx = x + gi.advance * target_fraction;
 
@@ -6755,12 +6803,12 @@ pub fn renderText(opts: renderTextOptions) !void {
 
         v.pos.x = x + (gi.leftBearing + gi.w) * target_fraction;
         max_x = v.pos.x;
-        v.uv[0] = gi.uv[0] + gi.w / fce.texture_atlas_size.w;
+        v.uv[0] = gi.uv[0] + gi.w / atlas_size.w;
         try vtx.append(v);
 
         v.pos.y = y + (gi.topBearing + gi.h) * target_fraction;
         sel_max_y = @max(sel_max_y, v.pos.y);
-        v.uv[1] = gi.uv[1] + gi.h / fce.texture_atlas_size.h;
+        v.uv[1] = gi.uv[1] + gi.h / atlas_size.h;
         try vtx.append(v);
 
         v.pos.x = x + gi.leftBearing * target_fraction;
@@ -6848,11 +6896,11 @@ pub fn debugRenderFontAtlases(rs: RectScale, color: Color) !void {
         v.uv = .{ 0, 0 };
         try vtx.append(v);
 
-        v.pos.x = x + kv.value_ptr.texture_atlas_size.w;
+        v.pos.x = x + @as(f32, @floatFromInt(kv.value_ptr.texture_atlas.width));
         v.uv[0] = 1;
         try vtx.append(v);
 
-        v.pos.y = y + offset + kv.value_ptr.texture_atlas_size.h;
+        v.pos.y = y + offset + @as(f32, @floatFromInt(kv.value_ptr.texture_atlas.height));
         v.uv[1] = 1;
         try vtx.append(v);
 
@@ -6873,7 +6921,7 @@ pub fn debugRenderFontAtlases(rs: RectScale, color: Color) !void {
 
         cw.backend.drawClippedTriangles(kv.value_ptr.texture_atlas, vtx.items, idx.items, clipr);
 
-        offset += kv.value_ptr.texture_atlas_size.h;
+        offset += @as(f32, @floatFromInt(kv.value_ptr.texture_atlas.height));
     }
 }
 
@@ -6882,7 +6930,7 @@ pub fn debugRenderFontAtlases(rs: RectScale, color: Color) !void {
 /// Remember to destroy the texture at some point, see textureDestroyLater().
 ///
 /// Only valid between dvui.Window.begin() and end().
-pub fn textureCreate(pixels: [*]u8, width: u32, height: u32, interpolation: enums.TextureInterpolation) *anyopaque {
+pub fn textureCreate(pixels: [*]u8, width: u32, height: u32, interpolation: enums.TextureInterpolation) Texture {
     return currentWindow().backend.textureCreate(pixels, width, height, interpolation);
 }
 
@@ -6892,15 +6940,23 @@ pub fn textureCreate(pixels: [*]u8, width: u32, height: u32, interpolation: enum
 /// Remember to destroy the texture at some point, see textureDestroyLater().
 ///
 /// Only valid between dvui.Window.begin() and end().
-pub fn textureCreateTarget(width: u32, height: u32, interpolation: enums.TextureInterpolation) !*anyopaque {
+pub fn textureCreateTarget(width: u32, height: u32, interpolation: enums.TextureInterpolation) !Texture {
     return try currentWindow().backend.textureCreateTarget(width, height, interpolation);
 }
 
 /// Read pixels from texture created with textureCreateTarget().
 ///
+/// Returns pixels allocated by arena.
+///
 /// Only valid between dvui.Window.begin() and end().
-pub fn textureRead(texture: *anyopaque, pixels_out: [*]u8, width: u32, height: u32) !void {
-    try currentWindow().backend.textureRead(texture, pixels_out, width, height);
+pub fn textureRead(arena: std.mem.Allocator, texture: Texture) ![]u8 {
+    const size: usize = texture.width * texture.height * 4;
+    const pixels = try arena.alloc(u8, size);
+    errdefer arena.free(pixels);
+
+    try currentWindow().backend.textureRead(texture, pixels.ptr);
+
+    return pixels;
 }
 
 /// Destroy a texture created with textureCreate() or textureCreateTarget() at
@@ -6911,14 +6967,14 @@ pub fn textureRead(texture: *anyopaque, pixels_out: [*]u8, width: u32, height: u
 /// to use even in a subwindow where rendering is deferred.
 ///
 /// Only valid between dvui.Window.begin() and end().
-pub fn textureDestroyLater(texture: *anyopaque) void {
+pub fn textureDestroyLater(texture: Texture) void {
     currentWindow().texture_trash.append(texture) catch |err| {
         dvui.log.err("textureDestroyLater got {!}\n", .{err});
     };
 }
 
 pub const RenderTarget = struct {
-    texture: ?*anyopaque,
+    texture: ?Texture,
     offset: Point,
     rendering: bool = true,
 };
@@ -6929,7 +6985,8 @@ pub const RenderTarget = struct {
 /// offset will be subtracted from all dvui rendering, useful as the point on
 /// the screen the texture will map to.
 ///
-/// Useful for caching expensive renders or to save a render for export.
+/// Useful for caching expensive renders or to save a render for export.  See
+/// Picture.
 ///
 /// Only valid between dvui.Window.begin() and end().
 pub fn renderTarget(args: RenderTarget) RenderTarget {
@@ -6947,7 +7004,7 @@ pub const RenderTextureOptions = struct {
     debug: bool = false,
 };
 
-pub fn renderTexture(tex: *anyopaque, rs: RectScale, opts: RenderTextureOptions) !void {
+pub fn renderTexture(tex: Texture, rs: RectScale, opts: RenderTextureOptions) !void {
     if (rs.s == 0) return;
     if (clipGet().intersect(rs.r).empty()) return;
 
@@ -7090,7 +7147,7 @@ pub fn imageTexture(name: []const u8, image_bytes: []const u8) !TextureCacheEntr
     //    }
     //}
 
-    const entry = TextureCacheEntry{ .texture = texture, .size = .{ .w = @as(f32, @floatFromInt(w)), .h = @as(f32, @floatFromInt(h)) } };
+    const entry = TextureCacheEntry{ .texture = texture };
     try cw.texture_cache.put(hash, entry);
 
     return entry;
@@ -7102,4 +7159,385 @@ pub fn renderImage(name: []const u8, image_bytes: []const u8, rs: RectScale, rot
 
     const tce = imageTexture(name, image_bytes) catch return;
     try renderTexture(tce.texture, rs, .{ .rotation = rotation, .colormod = colormod });
+}
+
+/// Captures dvui drawing to part of the screen in a texture.
+pub const Picture = struct {
+    r: Rect, // physical pixels captured
+    texture: dvui.Texture = undefined,
+    target: dvui.RenderTarget = undefined,
+
+    /// Begin recording drawing to the physical pixels in rect (enlarged to pixel boundaries).
+    ///
+    /// Returns null if backend does not support texture targets.
+    ///
+    /// Only valid between dvui.Window.begin() and end().
+    pub fn start(rect: Rect) ?Picture {
+        var ret: Picture = .{ .r = rect };
+
+        // enlarge texture to pixels boundaries
+        const x_start = @floor(ret.r.x);
+        const x_end = @ceil(ret.r.x + ret.r.w);
+        ret.r.x = x_start;
+        ret.r.w = @round(x_end - x_start);
+
+        const y_start = @floor(ret.r.y);
+        const y_end = @ceil(ret.r.y + ret.r.h);
+        ret.r.y = y_start;
+        ret.r.h = @round(y_end - y_start);
+
+        ret.texture = dvui.textureCreateTarget(@intFromFloat(ret.r.w), @intFromFloat(ret.r.h), .linear) catch return null;
+        ret.target = dvui.renderTarget(.{ .texture = ret.texture, .offset = ret.r.topLeft() });
+
+        return ret;
+    }
+
+    /// Stop recording and return texture (only valid this frame).
+    pub fn stop(self: *const Picture) dvui.Texture {
+        _ = dvui.renderTarget(self.target);
+
+        // render the texture so you see the picture this frame
+        dvui.renderTexture(self.texture, .{ .r = self.r }, .{}) catch {};
+
+        dvui.textureDestroyLater(self.texture);
+        return self.texture;
+    }
+};
+
+pub const pngFromTextureOptions = struct {
+    /// Physical size of image, pixels per meter added to png pHYs chunk.
+    /// 0 => don't write the pHYs chunk
+    /// null => dvui will use 72 dpi (2834.64 px/m) times windowNaturalScale()
+    resolution: ?u32 = null,
+};
+
+/// Make a png encoded image from a texture.
+///
+/// Gives bytes of a png file (allocated by arena) with contents from texture.
+pub fn pngFromTexture(arena: std.mem.Allocator, texture: Texture, opts: pngFromTextureOptions) ![]u8 {
+    const px = try textureRead(arena, texture);
+
+    var len: c_int = undefined;
+    const png_bytes = c.stbi_write_png_to_mem(px.ptr, @intCast(texture.width * 4), @intCast(texture.width), @intCast(texture.height), 4, &len);
+    arena.free(px);
+
+    // 4 bytes: length of data
+    // 4 bytes: "pHYs"
+    // 9 bytes: data (2 4-byte numbers + 1 byte units)
+    // 4 bytes: crc
+    const pHYs_size = 4 + 4 + 9 + 4;
+    var extra: usize = pHYs_size;
+    var p_buf: [pHYs_size]u8 = undefined;
+    var res: u32 = 0;
+    if (opts.resolution) |r| {
+        res = r;
+    } else {
+        res = @intFromFloat(@round(windowNaturalScale() * 72.0 / 0.0254));
+    }
+
+    if (res == 0) {
+        extra = 0;
+    } else {
+        std.mem.writeInt(u32, p_buf[0..][0..4], 9, .big); // length of data
+        @memcpy(p_buf[4..][0..4], "pHYs");
+        std.mem.writeInt(u32, p_buf[8..][0..4], res, .big); // res horizontal
+        std.mem.writeInt(u32, p_buf[12..][0..4], res, .big); // res vertical
+        p_buf[16] = 1; // 1 => pixels/meter
+
+        // crc includes "pHYs" and data
+        std.mem.writeInt(u32, p_buf[17..][0..4], png_crc32(p_buf[4..][0..13]), .big);
+    }
+
+    var ret = try arena.alloc(u8, @as(usize, @intCast(len)) + extra);
+
+    // find byte index of end of IDHR chunk
+    const idhr_data_len: u32 = std.mem.readInt(u32, png_bytes[8..][0..4], .big);
+
+    // 8 bytes PNG magic bytes
+    // 4 bytes length of IDHR data
+    // 4 bytes "IDHR"
+    // IDHR data
+    // 4 bytes IDHR crc
+    const split: u32 = 8 + 4 + 4 + idhr_data_len + 4;
+
+    @memcpy(ret[0..split], png_bytes[0..split]);
+    if (res != 0) {
+        @memcpy(ret[split..][0..extra], &p_buf);
+    }
+    @memcpy(ret[split + extra ..], png_bytes[split..@as(usize, @intCast(len))]);
+
+    if (wasm) {
+        backend.dvui_c_free(png_bytes);
+    } else {
+        c.free(png_bytes);
+    }
+
+    return ret;
+}
+
+/// Calculate a PNG crc value.
+///
+/// Code from stb_image_write.h
+pub fn png_crc32(buf: []u8) u32 {
+    // zig fmt: off
+    const crc_table = [256]u32 {
+      0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
+      0x0eDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988, 0x09B64C2B, 0x7EB17CBD, 0xE7B82D07, 0x90BF1D91,
+      0x1DB71064, 0x6AB020F2, 0xF3B97148, 0x84BE41DE, 0x1ADAD47D, 0x6DDDE4EB, 0xF4D4B551, 0x83D385C7,
+      0x136C9856, 0x646BA8C0, 0xFD62F97A, 0x8A65C9EC, 0x14015C4F, 0x63066CD9, 0xFA0F3D63, 0x8D080DF5,
+      0x3B6E20C8, 0x4C69105E, 0xD56041E4, 0xA2677172, 0x3C03E4D1, 0x4B04D447, 0xD20D85FD, 0xA50AB56B,
+      0x35B5A8FA, 0x42B2986C, 0xDBBBC9D6, 0xACBCF940, 0x32D86CE3, 0x45DF5C75, 0xDCD60DCF, 0xABD13D59,
+      0x26D930AC, 0x51DE003A, 0xC8D75180, 0xBFD06116, 0x21B4F4B5, 0x56B3C423, 0xCFBA9599, 0xB8BDA50F,
+      0x2802B89E, 0x5F058808, 0xC60CD9B2, 0xB10BE924, 0x2F6F7C87, 0x58684C11, 0xC1611DAB, 0xB6662D3D,
+      0x76DC4190, 0x01DB7106, 0x98D220BC, 0xEFD5102A, 0x71B18589, 0x06B6B51F, 0x9FBFE4A5, 0xE8B8D433,
+      0x7807C9A2, 0x0F00F934, 0x9609A88E, 0xE10E9818, 0x7F6A0DBB, 0x086D3D2D, 0x91646C97, 0xE6635C01,
+      0x6B6B51F4, 0x1C6C6162, 0x856530D8, 0xF262004E, 0x6C0695ED, 0x1B01A57B, 0x8208F4C1, 0xF50FC457,
+      0x65B0D9C6, 0x12B7E950, 0x8BBEB8EA, 0xFCB9887C, 0x62DD1DDF, 0x15DA2D49, 0x8CD37CF3, 0xFBD44C65,
+      0x4DB26158, 0x3AB551CE, 0xA3BC0074, 0xD4BB30E2, 0x4ADFA541, 0x3DD895D7, 0xA4D1C46D, 0xD3D6F4FB,
+      0x4369E96A, 0x346ED9FC, 0xAD678846, 0xDA60B8D0, 0x44042D73, 0x33031DE5, 0xAA0A4C5F, 0xDD0D7CC9,
+      0x5005713C, 0x270241AA, 0xBE0B1010, 0xC90C2086, 0x5768B525, 0x206F85B3, 0xB966D409, 0xCE61E49F,
+      0x5EDEF90E, 0x29D9C998, 0xB0D09822, 0xC7D7A8B4, 0x59B33D17, 0x2EB40D81, 0xB7BD5C3B, 0xC0BA6CAD,
+      0xEDB88320, 0x9ABFB3B6, 0x03B6E20C, 0x74B1D29A, 0xEAD54739, 0x9DD277AF, 0x04DB2615, 0x73DC1683,
+      0xE3630B12, 0x94643B84, 0x0D6D6A3E, 0x7A6A5AA8, 0xE40ECF0B, 0x9309FF9D, 0x0A00AE27, 0x7D079EB1,
+      0xF00F9344, 0x8708A3D2, 0x1E01F268, 0x6906C2FE, 0xF762575D, 0x806567CB, 0x196C3671, 0x6E6B06E7,
+      0xFED41B76, 0x89D32BE0, 0x10DA7A5A, 0x67DD4ACC, 0xF9B9DF6F, 0x8EBEEFF9, 0x17B7BE43, 0x60B08ED5,
+      0xD6D6A3E8, 0xA1D1937E, 0x38D8C2C4, 0x4FDFF252, 0xD1BB67F1, 0xA6BC5767, 0x3FB506DD, 0x48B2364B,
+      0xD80D2BDA, 0xAF0A1B4C, 0x36034AF6, 0x41047A60, 0xDF60EFC3, 0xA867DF55, 0x316E8EEF, 0x4669BE79,
+      0xCB61B38C, 0xBC66831A, 0x256FD2A0, 0x5268E236, 0xCC0C7795, 0xBB0B4703, 0x220216B9, 0x5505262F,
+      0xC5BA3BBE, 0xB2BD0B28, 0x2BB45A92, 0x5CB36A04, 0xC2D7FFA7, 0xB5D0CF31, 0x2CD99E8B, 0x5BDEAE1D,
+      0x9B64C2B0, 0xEC63F226, 0x756AA39C, 0x026D930A, 0x9C0906A9, 0xEB0E363F, 0x72076785, 0x05005713,
+      0x95BF4A82, 0xE2B87A14, 0x7BB12BAE, 0x0CB61B38, 0x92D28E9B, 0xE5D5BE0D, 0x7CDCEFB7, 0x0BDBDF21,
+      0x86D3D2D4, 0xF1D4E242, 0x68DDB3F8, 0x1FDA836E, 0x81BE16CD, 0xF6B9265B, 0x6FB077E1, 0x18B74777,
+      0x88085AE6, 0xFF0F6A70, 0x66063BCA, 0x11010B5C, 0x8F659EFF, 0xF862AE69, 0x616BFFD3, 0x166CCF45,
+      0xA00AE278, 0xD70DD2EE, 0x4E048354, 0x3903B3C2, 0xA7672661, 0xD06016F7, 0x4969474D, 0x3E6E77DB,
+      0xAED16A4A, 0xD9D65ADC, 0x40DF0B66, 0x37D83BF0, 0xA9BCAE53, 0xDEBB9EC5, 0x47B2CF7F, 0x30B5FFE9,
+      0xBDBDF21C, 0xCABAC28A, 0x53B39330, 0x24B4A3A6, 0xBAD03605, 0xCDD70693, 0x54DE5729, 0x23D967BF,
+      0xB3667A2E, 0xC4614AB8, 0x5D681B02, 0x2A6F2B94, 0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
+    };
+    // zig fmt: on
+
+    var crc: u32 = ~@as(u32, 0);
+    for (buf) |ch| {
+        crc = (crc >> 8) ^ crc_table[ch ^ (crc & 0xff)];
+    }
+    return ~crc;
+}
+
+pub const PlotWidget = struct {
+    pub var defaults: Options = .{
+        .name = "Plot",
+        .padding = Rect.all(6),
+        .background = true,
+    };
+
+    pub const InitOptions = struct {
+        title: ?[]const u8 = null,
+        x_axis: ?[]const u8 = null,
+        x_min: f32,
+        x_max: f32,
+        y_axis: ?[]const u8 = null,
+        y_min: f32,
+        y_max: f32,
+    };
+
+    pub const Axis = struct {
+        min: f32,
+        max: f32,
+
+        pub fn fraction(self: *Axis, val: f32) f32 {
+            return (val - self.min) / (self.max - self.min);
+        }
+    };
+
+    pub const Line = struct {
+        plot: *PlotWidget,
+        path: std.ArrayList(dvui.Point),
+
+        pub fn point(self: *Line, p: dvui.Point) !void {
+            const screen_p = self.plot.pointToScreen(p);
+            if (self.plot.mouse_point) |mp| {
+                const dp = Point.diff(mp, screen_p);
+                const dps = dp.scale(1 / windowNaturalScale());
+                if (@abs(dps.x) <= 3 and @abs(dps.y) <= 3) {
+                    self.plot.hover_data = p;
+                }
+            }
+            try self.path.append(screen_p);
+        }
+
+        pub fn stroke(self: *Line, thick: f32, color: dvui.Color) !void {
+            try dvui.pathStroke(self.path.items, thick * self.plot.data_rs.s, color, .{});
+        }
+
+        pub fn deinit(self: *Line) void {
+            self.path.deinit();
+        }
+    };
+
+    box: BoxWidget = undefined,
+    data_rs: RectScale = undefined,
+    old_clip: Rect = undefined,
+    init_options: InitOptions = undefined,
+    x_axis: Axis = undefined,
+    y_axis: Axis = undefined,
+    mouse_point: ?Point = null,
+    hover_data: ?Point = null,
+
+    pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Options) PlotWidget {
+        var self = PlotWidget{};
+        self.init_options = init_opts;
+        self.x_axis = Axis{ .min = self.init_options.x_min, .max = self.init_options.x_max };
+        self.y_axis = Axis{ .min = self.init_options.y_min, .max = self.init_options.y_max };
+        self.box = BoxWidget.init(src, .vertical, false, defaults.override(opts));
+        return self;
+    }
+
+    pub fn pointToScreen(self: *PlotWidget, p: dvui.Point) dvui.Point {
+        const xfrac = self.x_axis.fraction(p.x);
+        const yfrac = self.y_axis.fraction(p.y);
+        return .{
+            .x = self.data_rs.r.x + xfrac * self.data_rs.r.w,
+            .y = self.data_rs.r.y + (1.0 - yfrac) * self.data_rs.r.h,
+        };
+    }
+
+    pub fn install(self: *PlotWidget) !void {
+        try self.box.install();
+        try self.box.drawBackground();
+
+        if (self.init_options.title) |title| {
+            try dvui.label(@src(), "{s}", .{title}, .{ .gravity_x = 0.5, .font_style = .title_4 });
+        }
+
+        //const str = "000";
+        const tick_font = (dvui.Options{ .font_style = .caption }).fontGet();
+        //const tick_size = tick_font.sizeM(str.len, 1);
+
+        const yticks = [_]f32{ self.y_axis.min, self.y_axis.max };
+        var tick_width: f32 = 0;
+        for (yticks) |ytick| {
+            const tick_str = try std.fmt.allocPrint(dvui.currentWindow().arena(), "{d}", .{ytick});
+            tick_width = @max(tick_width, (try tick_font.textSize(tick_str)).w);
+        }
+
+        var hbox1 = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+
+        // y axis
+        var yaxis = try dvui.box(@src(), .horizontal, .{ .expand = .vertical, .min_size_content = .{ .w = tick_width } });
+        var yaxis_rect = yaxis.data().rect;
+        if (self.init_options.y_axis) |yname| {
+            try dvui.label(@src(), "{s}", .{yname}, .{ .gravity_y = 0.5 });
+        }
+        yaxis.deinit();
+
+        // right padding (if adding, need to add a spacer to the right of xaxis as well)
+        //var xaxis_padding = try dvui.box(@src(), .horizontal, .{ .gravity_x = 1.0, .expand = .vertical, .min_size_content = .{ .w = tick_size.w / 2 } });
+        //xaxis_padding.deinit();
+
+        // data area
+        var data_box = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+
+        // mouse hover
+        const evts = dvui.events();
+        for (evts) |*e| {
+            if (!dvui.eventMatchSimple(e, data_box.data()))
+                continue;
+
+            switch (e.evt) {
+                .mouse => |me| {
+                    if (me.action == .position) {
+                        e.handled = true;
+                        self.mouse_point = me.p;
+                    }
+                },
+                else => {},
+            }
+        }
+
+        yaxis_rect.h = data_box.data().rect.h;
+        self.data_rs = data_box.data().contentRectScale();
+        data_box.deinit();
+        try self.data_rs.r.stroke(.{}, 1 * self.data_rs.s, self.box.data().options.color(.text), .{});
+
+        const pad = 2 * self.data_rs.s;
+
+        hbox1.deinit();
+
+        var hbox2 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+
+        // bottom left corner under y axis
+        _ = try dvui.spacer(@src(), .{ .w = yaxis_rect.w }, .{ .expand = .vertical });
+
+        // x axis
+        var xaxis = try dvui.box(@src(), .vertical, .{ .gravity_y = 1.0, .expand = .horizontal, .min_size_content = .{ .h = tick_font.sizeM(1, 1).h } });
+        if (self.init_options.x_axis) |xname| {
+            try dvui.label(@src(), "{s}", .{xname}, .{ .gravity_x = 0.5, .gravity_y = 0.5 });
+        }
+        xaxis.deinit();
+
+        hbox2.deinit();
+
+        // y axis ticks
+        for (yticks) |ytick| {
+            const tick = dvui.Point{ .x = self.x_axis.min, .y = ytick };
+            const tick_str = try std.fmt.allocPrint(dvui.currentWindow().arena(), "{d}", .{ytick});
+            const tick_str_size = (try tick_font.textSize(tick_str)).scale(self.data_rs.s);
+            var tick_p = self.pointToScreen(tick);
+            tick_p.x -= tick_str_size.w + pad;
+            tick_p.y = @max(tick_p.y, self.data_rs.r.y);
+            tick_p.y = @min(tick_p.y, self.data_rs.r.y + self.data_rs.r.h - tick_str_size.h);
+            //tick_p.y -= tick_str_size.h / 2;
+            const tick_rs: RectScale = .{ .r = Rect.fromPoint(tick_p).toSize(tick_str_size), .s = self.data_rs.s };
+
+            try dvui.renderText(.{ .font = tick_font, .text = tick_str, .rs = tick_rs, .color = self.box.data().options.color(.text) });
+        }
+
+        // x axis ticks
+        const xticks = [_]f32{ self.x_axis.min, self.x_axis.max };
+        for (xticks) |xtick| {
+            const tick = dvui.Point{ .x = xtick, .y = self.y_axis.min };
+            const tick_str = try std.fmt.allocPrint(dvui.currentWindow().arena(), "{d}", .{xtick});
+            const tick_str_size = (try tick_font.textSize(tick_str)).scale(self.data_rs.s);
+            var tick_p = self.pointToScreen(tick);
+            tick_p.x = @max(tick_p.x, self.data_rs.r.x);
+            tick_p.x = @min(tick_p.x, self.data_rs.r.x + self.data_rs.r.w - tick_str_size.w);
+            //tick_p.x -= tick_str_size.w / 2;
+            tick_p.y += pad;
+            const tick_rs: RectScale = .{ .r = Rect.fromPoint(tick_p).toSize(tick_str_size), .s = self.data_rs.s };
+
+            try dvui.renderText(.{ .font = tick_font, .text = tick_str, .rs = tick_rs, .color = self.box.data().options.color(.text) });
+        }
+
+        self.old_clip = dvui.clip(self.data_rs.r);
+    }
+
+    pub fn line(self: *PlotWidget) Line {
+        return .{
+            .plot = self,
+            .path = .init(dvui.currentWindow().arena()),
+        };
+    }
+
+    pub fn deinit(self: *PlotWidget) void {
+        dvui.clipSet(self.old_clip);
+
+        if (self.hover_data) |hd| {
+            var p = self.box.data().contentRectScale().pointFromScreen(self.mouse_point.?);
+            const str = std.fmt.allocPrint(dvui.currentWindow().arena(), "{d}, {d}", .{ hd.x, hd.y }) catch "";
+            const size: Size = (dvui.Options{}).fontGet().textSize(str) catch .{ .w = 10, .h = 10 };
+            p.x -= size.w / 2;
+            const padding = dvui.LabelWidget.defaults.paddingGet();
+            p.y -= size.h + padding.y + padding.h + 8;
+            dvui.label(@src(), "{d}, {d}", .{ hd.x, hd.y }, .{ .rect = Rect.fromPoint(p), .background = true, .border = Rect.all(1), .margin = .{} }) catch {};
+        }
+
+        self.box.deinit();
+    }
+};
+
+pub fn plot(src: std.builtin.SourceLocation, plot_opts: PlotWidget.InitOptions, opts: Options) !*PlotWidget {
+    var ret = try currentWindow().arena().create(PlotWidget);
+    ret.* = PlotWidget.init(src, plot_opts, opts);
+    try ret.install();
+    return ret;
 }

@@ -31,8 +31,8 @@ pub fn init(
 ) Widget {
     const Ptr = @TypeOf(pointer);
     const ptr_info = @typeInfo(Ptr);
-    std.debug.assert(ptr_info == .Pointer); // Must be a pointer
-    std.debug.assert(ptr_info.Pointer.size == .One); // Must be a single-item pointer
+    std.debug.assert(ptr_info == .pointer); // Must be a pointer
+    std.debug.assert(ptr_info.pointer.size == .one); // Must be a single-item pointer
 
     const gen = struct {
         fn dataImpl(ptr: *anyopaque) *WidgetData {
@@ -80,13 +80,7 @@ pub fn data(self: Widget) *WidgetData {
 }
 
 pub fn extendId(self: Widget, src: std.builtin.SourceLocation, id_extra: usize) u32 {
-    var hash = dvui.fnv.init();
-    hash.value = self.data().id;
-    hash.update(src.file);
-    hash.update(std.mem.asBytes(&src.line));
-    hash.update(std.mem.asBytes(&src.column));
-    hash.update(std.mem.asBytes(&id_extra));
-    return hash.final();
+    return dvui.hashSrc(self.data().id, src, id_extra);
 }
 
 pub fn rectFor(self: Widget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {

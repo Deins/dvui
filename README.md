@@ -1,8 +1,8 @@
 # DVUI - Immediate Zig GUI for Apps and Games
 
-A Zig GUI toolkit for whole applications or extra debugging windows in an existing application.
+[Homepage](https://david-vanderson.github.io) A Zig GUI toolkit for whole applications or extra debugging windows in an existing application.
 
-Tested with [Zig](https://ziglang.org/) 0.13
+Tested with [Zig](https://ziglang.org/) 0.14 (use tag v0.2.0 for zig 0.13)
 
 How to run the built-in examples:
 
@@ -12,7 +12,7 @@ How to run the built-in examples:
 - ```zig build raylib-ontop```
 - ```zig build web-test```
   - then load `zig-out/bin/index.html`
-  - [online demo](https://david-vanderson.github.io)
+  - [online demo](https://david-vanderson.github.io/demo)
 - SDL3:
   - ```zig build sdl-standalone -Dsdl3```
   - ```zig build sdl-ontop -Dsdl3```
@@ -21,7 +21,7 @@ How to run the built-in examples:
 
 [Online Docs](https://david-vanderson.github.io/docs) This document is a broad overview.  See [implementation details](readme-implementation.md) for how to write and modify widgets.
 
-Online discussion happens in #gui-dev on the zig discord server: https://discord.gg/426ZADhs
+Online discussion happens in #gui-dev on the zig discord server: https://discord.gg/eJgXXTtVzA
 
 Below is a screenshot of the demo window, whose source code can be found at `src/Examples.zig`.
 
@@ -33,6 +33,7 @@ Below is a screenshot of the demo window, whose source code can be found at `src
 * [Graphical Janet REPL](https://codeberg.org/iacore/janet-graphical-repl)
 * [FIDO2/ Passkey compatible authenticator implementation for Linux](https://github.com/r4gus/keypass)
 * [QEMU frontend](https://github.com/AnErrupTion/ZigEmu)
+* [Static site generator GUI](https://github.com/nhanb/webmaker2000)
 
 ## Features
 
@@ -41,10 +42,8 @@ Below is a screenshot of the demo window, whose source code can be found at `src
 - Use for whole UI or for debugging on top of existing application
 - Existing backends
   - [SDL](https://libsdl.org/)
-  - [Web](https://david-vanderson.github.io)
+  - [Web](https://david-vanderson.github.io/demo)
   - [Raylib](https://www.raylib.com/)
-  - [Mach](https://machengine.org/)
-    - note: Mach backend is currently out of date
 - Icon support via [TinyVG](https://tinyvg.tech/)
 - Raster image support via [stb_image](https://github.com/nothings/stb)
 - Font support
@@ -91,7 +90,6 @@ The build.zig and build.zig.zon files there show how to reference dvui as a zig 
     - Drag to reorder/remove/add
 - Missing Widgets for now
   - Data Grid
-  - Flex Layout
   - Docking
 
 ## Design

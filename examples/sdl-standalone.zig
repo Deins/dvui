@@ -1,17 +1,17 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const dvui = @import("dvui");
-comptime {
-    std.debug.assert(dvui.backend_kind == .sdl);
-}
 const Backend = dvui.backend;
+comptime {
+    std.debug.assert(@hasDecl(Backend, "SDLBackend"));
+}
 
 const window_icon_png = @embedFile("zig-favicon.png");
 
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
 
-const vsync = false;
+const vsync = true;
 const show_demo = true;
 var scale_val: f32 = 1.0;
 

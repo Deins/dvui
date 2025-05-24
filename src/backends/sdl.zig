@@ -1105,3 +1105,10 @@ test {
     //std.debug.print("{s} backend test\n", .{if (sdl3) "SDL3" else "SDL2"});
     std.testing.refAllDecls(@This());
 }
+
+pub fn setClipRect(renderer: *c.SDL_Renderer, rect: *const c.SDL_Rect) void {
+    // negative scissor generates warning when run with vulkan validation layers
+    // std.debug.assert(rect.x >= 0);
+    // std.debug.assert(rect.y >= 0);
+    _ = if (sdl3) c.SDL_SetRenderClipRect(renderer, rect) else c.SDL_RenderSetClipRect(renderer, rect);
+}

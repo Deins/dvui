@@ -48,6 +48,8 @@ pub const InitOptions = struct {
 
     /// If null, same as .internal = .{}
     text: ?TextOption = null,
+    /// Faded text shown when the textEntry is empty
+    placeholder: ?[]const u8 = null,
 
     break_lines: bool = false,
     scroll_vertical: ?bool = null, // default is value of multiline
@@ -61,12 +63,12 @@ pub const InitOptions = struct {
 };
 
 wd: WidgetData = undefined,
-prevClip: Rect = undefined,
+prevClip: Rect.Physical = undefined,
 scroll: ScrollAreaWidget = undefined,
 scroll_init_opts: ScrollAreaWidget.InitOpts = undefined,
-scrollClip: Rect = undefined,
+scrollClip: Rect.Physical = undefined,
 textLayout: TextLayoutWidget = undefined,
-textClip: Rect = undefined,
+textClip: Rect.Physical = undefined,
 padding: Rect = undefined,
 
 init_opts: InitOptions = undefined,
@@ -93,8 +95,8 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Optio
         // max size not given, so default to the same as min size for direction
         // we can scroll in
         const ms = options.min_size_contentGet();
-        const maxw = if (self.scroll_init_opts.horizontal == .auto) ms.w else 0;
-        const maxh = if (self.scroll_init_opts.vertical == .auto) ms.h else 0;
+        const maxw = if (self.scroll_init_opts.horizontal == .auto) ms.w else dvui.max_float_safe;
+        const maxh = if (self.scroll_init_opts.vertical == .auto) ms.h else dvui.max_float_safe;
         options = options.override(.{ .max_size_content = .{ .w = maxw, .h = maxh } });
     }
 
@@ -105,12 +107,8 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Optio
     options.padding = null;
     options.min_size_content.?.w += self.padding.x + self.padding.w;
     options.min_size_content.?.h += self.padding.y + self.padding.h;
-    if (options.max_size_content.?.w != 0) {
-        options.max_size_content.?.w += self.padding.x + self.padding.w;
-    }
-    if (options.max_size_content.?.h != 0) {
-        options.max_size_content.?.h += self.padding.y + self.padding.h;
-    }
+    options.max_size_content.?.w += self.padding.x + self.padding.w;
+    options.max_size_content.?.h += self.padding.y + self.padding.h;
 
     self.wd = WidgetData.init(src, .{}, options);
     self.scroll_init_opts.focus_id = self.wd.id;
@@ -149,6 +147,17 @@ pub fn install(self: *TextEntryWidget) !void {
     self.textLayout = TextLayoutWidget.init(@src(), .{ .break_lines = self.init_opts.break_lines, .touch_edit_just_focused = false }, self.wd.options.strip().override(.{ .expand = .both, .padding = self.padding }));
     try self.textLayout.install(.{ .focused = self.wd.id == dvui.focusedWidgetId(), .show_touch_draggables = (self.len > 0) });
     self.textClip = dvui.clipGet();
+
+    if (self.len == 0) {
+        if (self.init_opts.placeholder) |placeholder| {
+            try dvui.renderText(.{
+                .font = self.textLayout.wd.options.fontGet(),
+                .color = self.textLayout.wd.options.color(.text).opacity(0.75),
+                .rs = self.textLayout.wd.contentRectScale(),
+                .text = placeholder,
+            });
+        }
+    }
 
     if (try self.textLayout.touchEditing()) |floating_widget| {
         defer floating_widget.deinit();
@@ -213,7 +222,7 @@ pub fn draw(self: *TextEntryWidget) !void {
     const focused = (self.wd.id == dvui.focusedWidgetId());
 
     if (focused) {
-        dvui.wantTextInput(self.wd.borderRectScale().r);
+        dvui.wantTextInput(self.wd.borderRectScale().r.toNatural());
     }
 
     // set clip back to what textLayout had, so we don't draw over the scrollbars
@@ -299,8 +308,7 @@ pub fn drawCursor(self: *TextEntryWidget) !void {
 
         var crect = self.textLayout.cursor_rect.plus(.{ .x = -1 });
         crect.w = 2;
-        try dvui.pathAddRect(self.textLayout.screenRectScale(crect).r, Rect.all(0));
-        try dvui.pathFillConvex(self.wd.options.color(.accent));
+        try self.textLayout.screenRectScale(crect).r.fill(.{}, .{ .color = self.wd.options.color(.accent) });
     }
 }
 
@@ -312,7 +320,7 @@ pub fn data(self: *TextEntryWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *TextEntryWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+pub fn rectFor(self: *TextEntryWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
     return dvui.placeIn(self.wd.contentRect().justSize(), min_size, e, g);
 }
@@ -325,10 +333,15 @@ pub fn minSizeForChild(self: *TextEntryWidget, s: Size) void {
     self.wd.minSizeMax(self.wd.options.padSize(s));
 }
 
+pub fn textSet(self: *TextEntryWidget, text: []const u8, selected: bool) void {
+    self.textLayout.selection.selectAll();
+    self.textTyped(text, selected);
+}
+
 pub fn textTyped(self: *TextEntryWidget, new: []const u8, selected: bool) void {
     if (new.len == 0) return;
 
-    // strip out carraige returns, which we get from copy/paste on windows
+    // strip out carriage returns, which we get from copy/paste on windows
     if (std.mem.indexOfScalar(u8, new, '\r')) |idx| {
         self.textTyped(new[0..idx], selected);
         self.textTyped(new[idx + 1 ..], selected);
@@ -402,9 +415,7 @@ pub fn textTyped(self: *TextEntryWidget, new: []const u8, selected: bool) void {
 
     // update our len and maintain 0 termination if possible
     self.len += new_len;
-    if (self.len < self.text.len) {
-        self.text[self.len] = 0;
-    }
+    self.addNullTerminator();
 
     // insert
     std.mem.copyForwards(u8, self.text[sel.cursor..], new[0..new_len]);
@@ -422,7 +433,8 @@ pub fn textTyped(self: *TextEntryWidget, new: []const u8, selected: bool) void {
     }
 
     // we might have dropped to a new line, so make sure the cursor is visible
-    self.textLayout.scroll_to_cursor = true;
+    self.textLayout.scroll_to_cursor_next_frame = true;
+    dvui.refresh(null, @src(), self.wd.id);
 }
 
 /// Remove all characters that not present in filter_chars.
@@ -487,49 +499,56 @@ pub fn filterOut(self: *TextEntryWidget, needle: []const u8) void {
         self.text[j] = 0;
 }
 
+/// Sets the null terminator at index self.len if there is space in the backing slice
+pub fn addNullTerminator(self: *TextEntryWidget) void {
+    if (self.len < self.text.len) {
+        self.text[self.len] = 0;
+    }
+}
+
 pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
     switch (e.evt) {
         .key => |ke| blk: {
             if (ke.action == .down and ke.matchBind("next_widget")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.tabIndexNext(e.num);
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("prev_widget")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.tabIndexPrev(e.num);
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("paste")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.paste();
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("cut")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.cut();
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("text_start")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.textLayout.selection.moveCursor(0, false);
                 self.textLayout.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("text_end")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.textLayout.selection.moveCursor(std.math.maxInt(usize), false);
                 self.textLayout.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("line_start")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .expand_pt = .{ .select = false, .which = .home } };
                 }
@@ -537,7 +556,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if (ke.action == .down and ke.matchBind("line_end")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .expand_pt = .{ .select = false, .which = .end } };
                 }
@@ -545,7 +564,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_left")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.start, false);
                 } else {
@@ -560,7 +579,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_right")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.end, false);
                     self.textLayout.selection.affinity = .before;
@@ -576,7 +595,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_left")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.start, false);
                 } else {
@@ -591,7 +610,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_right")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.end, false);
                     self.textLayout.selection.affinity = .before;
@@ -607,7 +626,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_up")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .cursor_updown = .{ .select = false } };
                 }
@@ -618,7 +637,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_down")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .cursor_updown = .{ .select = false } };
                 }
@@ -631,13 +650,13 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             switch (ke.code) {
                 .backspace => {
                     if (ke.action == .down or ke.action == .repeat) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         var sel = self.textLayout.selectionGet(self.len);
                         if (!sel.empty()) {
                             // just delete selection
                             std.mem.copyForwards(u8, self.text[sel.start..], self.text[sel.end..self.len]);
                             self.len -= (sel.end - sel.start);
-                            self.text[self.len] = 0;
+                            self.addNullTerminator();
                             sel.end = sel.start;
                             sel.cursor = sel.start;
                             self.textLayout.scroll_to_cursor = true;
@@ -661,9 +680,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
                             // delete from sel.cursor to oldcur
                             std.mem.copyForwards(u8, self.text[sel.cursor..], self.text[oldcur..self.len]);
                             self.len -= (oldcur - sel.cursor);
-                            if (self.len > 0) {
-                                self.text[self.len] = 0;
-                            }
+                            self.addNullTerminator();
                             sel.end = sel.cursor;
                             sel.start = sel.cursor;
                             self.textLayout.scroll_to_cursor = true;
@@ -679,7 +696,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
                             while (sel.cursor - i > 0 and self.text[sel.cursor - i] & 0xc0 == 0x80) : (i += 1) {}
                             std.mem.copyForwards(u8, self.text[sel.cursor - i ..], self.text[sel.cursor..self.len]);
                             self.len -= i;
-                            self.text[self.len] = 0;
+                            self.addNullTerminator();
                             sel.cursor -= i;
                             sel.start = sel.cursor;
                             sel.end = sel.cursor;
@@ -690,13 +707,13 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
                 },
                 .delete => {
                     if (ke.action == .down or ke.action == .repeat) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         var sel = self.textLayout.selectionGet(self.len);
                         if (!sel.empty()) {
                             // just delete selection
                             std.mem.copyForwards(u8, self.text[sel.start..], self.text[sel.end..self.len]);
                             self.len -= (sel.end - sel.start);
-                            self.text[self.len] = 0;
+                            self.addNullTerminator();
                             sel.end = sel.start;
                             sel.cursor = sel.start;
                             self.textLayout.scroll_to_cursor = true;
@@ -720,14 +737,12 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
                             // delete from oldcur to sel.cursor
                             std.mem.copyForwards(u8, self.text[oldcur..], self.text[sel.cursor..self.len]);
                             self.len -= (sel.cursor - oldcur);
-                            if (self.len > 0) {
-                                self.text[self.len] = 0;
-                            }
+                            self.addNullTerminator();
+                            self.text_changed = (sel.cursor != oldcur);
                             sel.cursor = oldcur;
                             sel.end = sel.cursor;
                             sel.start = sel.cursor;
                             self.textLayout.scroll_to_cursor = true;
-                            self.text_changed = (sel.cursor != oldcur);
                         } else if (sel.cursor < self.len) {
                             // delete the character just after the cursor
                             //
@@ -737,7 +752,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
 
                             std.mem.copyForwards(u8, self.text[sel.cursor..], self.text[sel.cursor + i .. self.len]);
                             self.len -= i;
-                            self.text[self.len] = 0;
+                            self.addNullTerminator();
                             self.textLayout.scroll_to_cursor = true;
                             self.text_changed = true;
                         }
@@ -745,7 +760,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
                 },
                 .enter => {
                     if (ke.action == .down or ke.action == .repeat) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         if (self.init_opts.multiline) {
                             self.textTyped("\n", false);
                         } else {
@@ -758,7 +773,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
         },
         .text => |te| {
-            e.handled = true;
+            e.handle(@src(), self.data());
             var new = std.mem.sliceTo(te.txt, 0);
             if (self.init_opts.multiline) {
                 self.textTyped(new, te.selected);
@@ -777,7 +792,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
         },
         .mouse => |me| {
             if (me.action == .focus) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.focusWidget(self.wd.id, null, e.num);
             }
         },
@@ -826,7 +841,7 @@ pub fn cut(self: *TextEntryWidget) void {
         // delete selection
         std.mem.copyForwards(u8, self.text[sel.start..], self.text[sel.end..self.len]);
         self.len -= (sel.end - sel.start);
-        self.text[self.len] = 0;
+        self.addNullTerminator();
         sel.end = sel.start;
         sel.cursor = sel.start;
         self.textLayout.scroll_to_cursor = true;
@@ -876,4 +891,8 @@ pub fn deinit(self: *TextEntryWidget) void {
     self.wd.minSizeSetAndRefresh();
     self.wd.minSizeReportToParent();
     dvui.parentReset(self.wd.id, self.wd.parent);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

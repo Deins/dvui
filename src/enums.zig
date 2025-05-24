@@ -1,6 +1,32 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
+pub const Backend = enum {
+    custom,
+    /// DEPRECATED: Use either sdl2 or sdl3
+    sdl,
+    sdl2,
+    sdl3,
+    raylib,
+    dx11,
+    web,
+    /// Does no rendering!
+    testing,
+};
+
+pub const Units = enum {
+    /// None is the logical units. It's used for relative placements
+    /// and other non-pixel use cases
+    none,
+    /// Natural pixels is the unit for subwindows. It differs from
+    /// physical pixels on hidpi screens or with content scaling.
+    natural,
+    /// Physical pixels is the units for rendering and dvui events.
+    /// Regardless of dpi or content scaling, physical pixels always
+    /// matches the output screen.
+    physical,
+};
+
 pub const TextureInterpolation = enum {
     nearest,
     linear,
@@ -49,6 +75,35 @@ pub const Keybind = struct {
     command: ?bool = null,
     key: ?Key = null,
     also: ?[]const u8 = null,
+
+    pub fn format(self: Keybind, arena: std.mem.Allocator) ![]u8 {
+        var ctrl_str: []const u8 = "";
+        if (self.control) |ctrl| {
+            ctrl_str = if (ctrl) "ctrl " else "!ctrl ";
+        }
+
+        var cmd_str: []const u8 = "";
+        if (self.command) |cmd| {
+            cmd_str = if (cmd) "cmd " else "!cmd ";
+        }
+
+        var alt_str: []const u8 = "";
+        if (self.alt) |alt| {
+            alt_str = if (alt) "alt " else "!alt ";
+        }
+
+        var shift_str: []const u8 = "";
+        if (self.shift) |shift| {
+            shift_str = if (shift) "shift " else "!shift ";
+        }
+
+        var key_str: []const u8 = "";
+        if (self.key) |key| {
+            key_str = @tagName(key);
+        }
+
+        return try std.fmt.allocPrint(arena, "{s}{s}{s}{s}{s}", .{ ctrl_str, cmd_str, alt_str, shift_str, key_str });
+    }
 };
 
 pub const Mod = enum(u16) {
@@ -120,9 +175,10 @@ pub const Mod = enum(u16) {
 
         var found_set = false;
 
-        inline for (@typeInfo(Mod).Enum.fields[0..9]) |field| {
-            if (self.has(@field(Mod, field.name))) {
-                std.debug.print(".{s}, ", .{field.name});
+        const mod_fields = comptime std.meta.fieldNames(Mod);
+        inline for (mod_fields[0..9]) |field_name| {
+            if (self.has(@field(Mod, field_name))) {
+                std.debug.print(".{s}, ", .{field_name});
                 found_set = true;
             }
         }
@@ -265,6 +321,13 @@ pub const Key = enum {
 pub const Direction = enum {
     horizontal,
     vertical,
+
+    pub fn invert(self: Direction) Direction {
+        return switch (self) {
+            .horizontal => .vertical,
+            .vertical => .horizontal,
+        };
+    }
 };
 
 pub const DialogResponse = enum(u8) {
@@ -287,3 +350,7 @@ pub const Cursor = enum(u8) {
     bad,
     hand,
 };
+
+test {
+    @import("std").testing.refAllDecls(@This());
+}

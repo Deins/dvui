@@ -103,7 +103,7 @@ pub fn data(self: *ButtonWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *ButtonWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+pub fn rectFor(self: *ButtonWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
     return dvui.placeIn(self.wd.contentRect().justSize(), min_size, e, g);
 }
@@ -121,17 +121,17 @@ pub fn processEvent(self: *ButtonWidget, e: *Event, bubbling: bool) void {
     switch (e.evt) {
         .mouse => |me| {
             if (me.action == .focus) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.focusWidget(self.wd.id, null, e.num);
             } else if (me.action == .press and me.button.pointer()) {
-                e.handled = true;
-                dvui.captureMouse(self.wd.id);
+                e.handle(@src(), self.data());
+                dvui.captureMouse(self.data());
 
                 // drag prestart is just for touch events
                 dvui.dragPreStart(me.p, .{});
             } else if (me.action == .release and me.button.pointer()) {
                 if (dvui.captured(self.wd.id)) {
-                    e.handled = true;
+                    e.handle(@src(), self.data());
                     dvui.captureMouse(null);
                     dvui.dragEnd();
                     if (self.data().borderRectScale().r.contains(me.p)) {
@@ -150,13 +150,13 @@ pub fn processEvent(self: *ButtonWidget, e: *Event, bubbling: bool) void {
                     }
                 }
             } else if (me.action == .position) {
-                e.handled = true;
+                dvui.cursorSet(.arrow);
                 self.hover = true;
             }
         },
         .key => |ke| {
             if (ke.action == .down and ke.matchBind("activate")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.click = true;
                 dvui.refresh(null, @src(), self.wd.id);
             }
@@ -173,4 +173,8 @@ pub fn deinit(self: *ButtonWidget) void {
     self.wd.minSizeSetAndRefresh();
     self.wd.minSizeReportToParent();
     dvui.parentReset(self.wd.id, self.wd.parent);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

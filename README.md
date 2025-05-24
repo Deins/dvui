@@ -1,27 +1,47 @@
 # DVUI - Immediate Zig GUI for Apps and Games
 
-A Zig GUI toolkit for whole applications or extra debugging windows in an existing application.
+[Homepage](https://david-vanderson.github.io) A Zig GUI toolkit for whole applications or extra debugging windows in an existing application.
 
-Tested with [Zig](https://ziglang.org/) 0.13
+Tested with [Zig](https://ziglang.org/) 0.14 (use tag v0.2.0 for zig 0.13)
 
 How to run the built-in examples:
 
-- ```zig build sdl-standalone```
-- ```zig build sdl-ontop```
-- ```zig build raylib-standalone```
-- ```zig build raylib-ontop```
-- ```zig build web-test```
-  - then load `zig-out/bin/index.html`
-  - [online demo](https://david-vanderson.github.io)
-- SDL3:
-  - ```zig build sdl-standalone -Dsdl3```
-  - ```zig build sdl-ontop -Dsdl3```
+- SDL2
+  - ```zig build sdl2-standalone```
+  - ```zig build sdl2-ontop```
+  - ```zig build sdl2-app```
+- SDL3
+  - ```zig build sdl3-standalone```
+  - ```zig build sdl3-ontop```  
+  - ```zig build sdl3-app```
+- Raylib
   - if you encounter error `No Wayland` also add flag `-Dlinux_display_backend=X11`
-  
+  - ```zig build raylib-standalone```
+  - ```zig build raylib-ontop```
+  - ```zig build raylib-app```
+- Dx11
+  - ```zig build dx11-standalone```
+  - ```zig build dx11-ontop```
+  - ```zig build dx11-app```
+- Web
+  - to load web examples you need so serve the files through a local web server
+    - `python -m http.server -d zig-out/bin/EXAMPLE_NAME`
+    - `caddy file-server --root zig-out/bin/EXAMPLE_NAME --listen :8000`
+  - ```zig build web-test```
+    - then load `zig-out/bin/web-test/index.html`
+  - ```zig build web-app```
+    - then load `zig-out/bin/web-app/index.html`
+    - [online demo](https://david-vanderson.github.io/demo)
+- Docs
+  - [Online Docs](https://david-vanderson.github.io/docs)
+  - ```zig build docs```
+    - then load `zig-out/docs/index.html`
+  - ```zig build docs -Dgenerate-images```
+    - adds images to the docs
 
-[Online Docs](https://david-vanderson.github.io/docs) This document is a broad overview.  See [implementation details](readme-implementation.md) for how to write and modify widgets.
+This document is a broad overview.  See [implementation details](readme-implementation.md) for how to write and modify widgets.
 
-Online discussion happens in #gui-dev on the zig discord server: https://discord.gg/426ZADhs
+Online discussion happens in #gui-dev on the zig discord server: https://discord.gg/eJgXXTtVzA or in IRC (Libera) channel #dvui
 
 Below is a screenshot of the demo window, whose source code can be found at `src/Examples.zig`.
 
@@ -33,6 +53,9 @@ Below is a screenshot of the demo window, whose source code can be found at `src
 * [Graphical Janet REPL](https://codeberg.org/iacore/janet-graphical-repl)
 * [FIDO2/ Passkey compatible authenticator implementation for Linux](https://github.com/r4gus/keypass)
 * [QEMU frontend](https://github.com/AnErrupTion/ZigEmu)
+* [Static site generator GUI](https://github.com/nhanb/webmaker2000)
+* [File explorer for Altair 8800 disk images](https://github.com/phatchman/altair_tools) - use the experimental branch.
+* [Kanji flashcard app](https://codeberg.org/tensorush/origa)
 
 ## Features
 
@@ -41,10 +64,9 @@ Below is a screenshot of the demo window, whose source code can be found at `src
 - Use for whole UI or for debugging on top of existing application
 - Existing backends
   - [SDL](https://libsdl.org/)
-  - [Web](https://david-vanderson.github.io)
+  - [Web](https://david-vanderson.github.io/demo)
   - [Raylib](https://www.raylib.com/)
-  - [Mach](https://machengine.org/)
-    - note: Mach backend is currently out of date
+  - [Dx11](https://learn.microsoft.com/en-us/windows/win32/direct3d11/atoc-dx-graphics-direct3d-11)
 - Icon support via [TinyVG](https://tinyvg.tech/)
 - Raster image support via [stb_image](https://github.com/nothings/stb)
 - Font support
@@ -87,11 +109,11 @@ The build.zig and build.zig.zon files there show how to reference dvui as a zig 
   - Toast
   - Panes with draggable sash
   - Dropdown
+  - Combo Box
   - Reorderable Lists
     - Drag to reorder/remove/add
 - Missing Widgets for now
   - Data Grid
-  - Flex Layout
   - Docking
 
 ## Design
@@ -240,7 +262,8 @@ Each widget has the following options that can be changed through the Options st
 - corner_radius (for each corner)
 - colors (either RGBA value or named)
   - example RGBA `.color_text = .{ .color = .{ .r = 0xe0, .g = 0x1b, .b = 0x24 } }`
-  - example named `.color_text = .{ .name = .err }` (get current theme's `color_err`)
+  - example HEX `.color_text = .fromHex("#e01b24")`
+  - example named `.color_text = .err` (get current theme's `color_err`)
   - color_accent
   - color_text
   - color_text_press
@@ -269,4 +292,3 @@ else {
 The theme's color_accent is also used to show keyboard focus.
 
 See [implementation details](readme-implementation.md) for more information.
-

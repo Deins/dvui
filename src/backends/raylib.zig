@@ -7,10 +7,16 @@ pub const c = @cImport({
     @cInclude("raymath.h");
     @cInclude("rlgl.h");
     @cInclude("raygui.h");
+
+    @cInclude("glfw3.h");
 });
 
-const RaylibBackend = @This();
+pub const kind: dvui.enums.Backend = .raylib;
+
+pub const RaylibBackend = @This();
 pub const Context = *RaylibBackend;
+
+const log = std.log.scoped(.RaylibBackend);
 
 gpa: std.mem.Allocator = undefined,
 we_own_window: bool = false,
@@ -25,7 +31,6 @@ touch_position_cache: c.Vector2 = .{ .x = 0, .y = 0 },
 dvui_consumed_events: bool = false,
 cursor_last: dvui.enums.Cursor = .arrow,
 frame_buffers: std.AutoArrayHashMap(u32, u32) = undefined,
-texture_sizes: std.AutoArrayHashMap(u32, dvui.Size) = undefined,
 fb_width: ?c_int = null,
 fb_height: ?c_int = null,
 
@@ -76,7 +81,7 @@ pub const InitOptions = struct {
     title: [:0]const u8,
     /// content of a PNG image (or any other format stb_image can load)
     /// tip: use @embedFile
-    icon: ?[:0]const u8 = null,
+    icon: ?[]const u8 = null,
 };
 
 //==========WINDOW MANAGEMENT FUNCTIONALITY==========
@@ -138,7 +143,6 @@ pub fn init(gpa: std.mem.Allocator) RaylibBackend {
     return RaylibBackend{
         .gpa = gpa,
         .frame_buffers = std.AutoArrayHashMap(u32, u32).init(gpa),
-        .texture_sizes = std.AutoArrayHashMap(u32, dvui.Size).init(gpa),
         .shader = c.LoadShaderFromMemory(vertexSource, fragSource),
         .VAO = @intCast(c.rlLoadVertexArray()),
     };
@@ -150,7 +154,6 @@ pub fn shouldBlockRaylibInput(self: *RaylibBackend) bool {
 
 pub fn deinit(self: *RaylibBackend) void {
     self.frame_buffers.deinit();
-    self.texture_sizes.deinit();
     c.UnloadShader(self.shader);
     c.rlUnloadVertexArray(@intCast(self.VAO));
 
@@ -172,23 +175,23 @@ pub fn sleep(_: *RaylibBackend, ns: u64) void {
     std.time.sleep(ns);
 }
 
-pub fn pixelSize(_: *RaylibBackend) dvui.Size {
+pub fn pixelSize(_: *RaylibBackend) dvui.Size.Physical {
     const w = c.GetRenderWidth();
     const h = c.GetRenderHeight();
-    return dvui.Size{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
+    return .{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
 }
 
-pub fn windowSize(_: *RaylibBackend) dvui.Size {
+pub fn windowSize(_: *RaylibBackend) dvui.Size.Natural {
     const w = c.GetScreenWidth();
     const h = c.GetScreenHeight();
-    return dvui.Size{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
+    return .{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
 }
 
 pub fn contentScale(_: *RaylibBackend) f32 {
     return 1.0;
 }
 
-pub fn drawClippedTriangles(self: *RaylibBackend, texture: ?*anyopaque, vtx: []const dvui.Vertex, idx: []const u16, clipr_in: ?dvui.Rect) void {
+pub fn drawClippedTriangles(self: *RaylibBackend, texture: ?dvui.Texture, vtx: []const dvui.Vertex, idx: []const u16, clipr_in: ?dvui.Rect.Physical) void {
 
     //make sure all raylib draw calls are rendered
     //before rendering dvui elements
@@ -258,7 +261,7 @@ pub fn drawClippedTriangles(self: *RaylibBackend, texture: ?*anyopaque, vtx: []c
 
     if (texture) |tex| {
         c.rlActiveTextureSlot(0);
-        const texid = @intFromPtr(tex);
+        const texid = @intFromPtr(tex.ptr);
         c.rlEnableTexture(@intCast(texid));
 
         const tex_loc = c.GetShaderLocation(shader, "texture0");
@@ -287,7 +290,7 @@ pub fn drawClippedTriangles(self: *RaylibBackend, texture: ?*anyopaque, vtx: []c
     }
 }
 
-pub fn textureCreate(_: *RaylibBackend, pixels: [*]u8, width: u32, height: u32, interpolation: dvui.enums.TextureInterpolation) *anyopaque {
+pub fn textureCreate(_: *RaylibBackend, pixels: [*]u8, width: u32, height: u32, interpolation: dvui.enums.TextureInterpolation) dvui.Texture {
     const texid = c.rlLoadTexture(pixels, @intCast(width), @intCast(height), c.PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
 
     switch (interpolation) {
@@ -304,13 +307,13 @@ pub fn textureCreate(_: *RaylibBackend, pixels: [*]u8, width: u32, height: u32, 
     c.rlTextureParameters(texid, c.RL_TEXTURE_WRAP_S, c.RL_TEXTURE_WRAP_CLAMP);
     c.rlTextureParameters(texid, c.RL_TEXTURE_WRAP_T, c.RL_TEXTURE_WRAP_CLAMP);
 
-    return @ptrFromInt(texid);
+    return dvui.Texture{ .ptr = @ptrFromInt(texid), .width = width, .height = height };
 }
 
-pub fn textureCreateTarget(self: *RaylibBackend, width: u32, height: u32, interpolation: dvui.enums.TextureInterpolation) !*anyopaque {
+pub fn textureCreateTarget(self: *RaylibBackend, width: u32, height: u32, interpolation: dvui.enums.TextureInterpolation) !dvui.TextureTarget {
     const id = c.rlLoadFramebuffer(); // Load an empty framebuffer
     if (id == 0) {
-        dvui.log.debug("Raylib textureCreateTarget: rlLoadFramebuffer() failed\n", .{});
+        log.debug("textureCreateTarget: rlLoadFramebuffer() failed\n", .{});
         return error.TextureCreate;
     }
 
@@ -337,31 +340,35 @@ pub fn textureCreateTarget(self: *RaylibBackend, width: u32, height: u32, interp
 
     // Check if fbo is complete with attachments (valid)
     if (!c.rlFramebufferComplete(id)) {
-        dvui.log.debug("Raylib textureCreateTarget: rlFramebufferComplete() false\n", .{});
+        log.debug("textureCreateTarget: rlFramebufferComplete() false\n", .{});
         return error.TextureCreate;
     }
 
     try self.frame_buffers.put(texid, id);
-    try self.texture_sizes.put(texid, .{ .w = @floatFromInt(width), .h = @floatFromInt(height) });
 
-    self.renderTarget(@ptrFromInt(texid));
+    const ret = dvui.TextureTarget{ .ptr = @ptrFromInt(texid), .width = width, .height = height };
+
+    self.renderTarget(ret);
     c.ClearBackground(c.BLANK);
     self.renderTarget(null);
 
-    return @ptrFromInt(texid);
+    return ret;
+}
+
+pub fn textureFromTarget(_: *RaylibBackend, texture: dvui.TextureTarget) dvui.Texture {
+    return .{ .ptr = texture.ptr, .width = texture.width, .height = texture.height };
 }
 
 /// Render future drawClippedTriangles() to the passed texture (or screen
 /// if null).
-pub fn renderTarget(self: *RaylibBackend, texture: ?*anyopaque) void {
+pub fn renderTarget(self: *RaylibBackend, texture: ?dvui.TextureTarget) void {
     if (texture) |tex| {
-        const texid = @intFromPtr(tex);
+        const texid = @intFromPtr(tex.ptr);
         var target: c.RenderTexture2D = undefined;
         target.id = self.frame_buffers.get(@intCast(texid)) orelse unreachable;
         target.texture.id = @intCast(texid);
-        const size = self.texture_sizes.get(@intCast(texid)) orelse unreachable;
-        target.texture.width = @intFromFloat(size.w);
-        target.texture.height = @intFromFloat(size.h);
+        target.texture.width = @intCast(tex.width);
+        target.texture.height = @intCast(tex.height);
         self.fb_width = target.texture.width;
         self.fb_height = target.texture.height;
 
@@ -381,11 +388,11 @@ pub fn renderTarget(self: *RaylibBackend, texture: ?*anyopaque) void {
     }
 }
 
-pub fn textureRead(_: *RaylibBackend, texture: *anyopaque, pixels_out: [*]u8, width: u32, height: u32) error{TextureRead}!void {
+pub fn textureReadTarget(_: *RaylibBackend, texture: dvui.TextureTarget, pixels_out: [*]u8) error{TextureRead}!void {
     var t: c.Texture2D = undefined;
-    t.id = @intCast(@intFromPtr(texture));
-    t.width = @intCast(width);
-    t.height = @intCast(height);
+    t.id = @intCast(@intFromPtr(texture.ptr));
+    t.width = @intCast(texture.width);
+    t.height = @intCast(texture.height);
     t.mipmaps = 1;
     t.format = c.PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
 
@@ -393,20 +400,18 @@ pub fn textureRead(_: *RaylibBackend, texture: *anyopaque, pixels_out: [*]u8, wi
     defer c.UnloadImage(img);
 
     const imgData: [*]u8 = @ptrCast(img.data.?);
-    for (0..width * height * 4) |i| {
+    for (0..@intCast(t.width * t.height * 4)) |i| {
         pixels_out[i] = imgData[i];
     }
 }
 
-pub fn textureDestroy(self: *RaylibBackend, texture: *anyopaque) void {
-    const texid = @intFromPtr(texture);
+pub fn textureDestroy(self: *RaylibBackend, texture: dvui.Texture) void {
+    const texid = @intFromPtr(texture.ptr);
     c.rlUnloadTexture(@intCast(texid));
 
     if (self.frame_buffers.fetchSwapRemove(@intCast(texid))) |kv| {
         c.rlUnloadFramebuffer(kv.value);
     }
-
-    _ = self.texture_sizes.swapRemove(@intCast(texid));
 }
 
 pub fn clipboardText(_: *RaylibBackend) ![]const u8 {
@@ -544,7 +549,7 @@ pub fn addAllEvents(self: *RaylibBackend, win: *dvui.Window) !bool {
     const mouse_move = c.GetMouseDelta();
     if (mouse_move.x != 0 or mouse_move.y != 0) {
         const mouse_pos = c.GetMousePosition();
-        if (try win.addEventMouseMotion(mouse_pos.x, mouse_pos.y)) disable_raylib_input = true;
+        if (try win.addEventMouseMotion(.{ .x = mouse_pos.x, .y = mouse_pos.y })) disable_raylib_input = true;
         if (self.log_events) {
             //std.debug.print("raylib event Mouse Moved\n", .{});
         }
@@ -573,9 +578,16 @@ pub fn addAllEvents(self: *RaylibBackend, win: *dvui.Window) !bool {
     }
 
     //scroll wheel movement
-    const scroll_wheel = c.GetMouseWheelMove();
-    if (scroll_wheel != 0) {
-        if (try win.addEventMouseWheel(scroll_wheel * 25)) disable_raylib_input = true;
+    const scroll_wheel = c.GetMouseWheelMoveV();
+    if (scroll_wheel.x != 0) {
+        if (try win.addEventMouseWheel(-scroll_wheel.x * 25, .horizontal)) disable_raylib_input = true;
+
+        if (self.log_events) {
+            std.debug.print("raylib event Mouse Wheel: {}\n", .{scroll_wheel});
+        }
+    }
+    if (scroll_wheel.y != 0) {
+        if (try win.addEventMouseWheel(scroll_wheel.y * 25, .vertical)) disable_raylib_input = true;
 
         if (self.log_events) {
             std.debug.print("raylib event Mouse Wheel: {}\n", .{scroll_wheel});
@@ -609,7 +621,7 @@ pub fn raylibMouseButtonToDvui(button: c_int) dvui.enums.Button {
         c.MOUSE_BUTTON_MIDDLE => .middle,
         c.MOUSE_BUTTON_RIGHT => .right,
         else => blk: {
-            dvui.log.debug("Raylib unknown button {}\n", .{button});
+            log.debug("unknown button {}\n", .{button});
             break :blk .six;
         },
     };
@@ -745,7 +757,7 @@ pub fn raylibKeyToDvui(key: c_int) dvui.enums.Key {
         c.KEY_BACK => .grave, //not sure if this is correct
 
         else => blk: {
-            dvui.log.debug("raylibKeymodToDvui unknown key{}\n", .{key});
+            log.debug("raylibKeymodToDvui unknown key{}\n", .{key});
             break :blk .unknown;
         },
     };
@@ -794,9 +806,92 @@ pub fn dvuiColorToRaylib(color: dvui.Color) c.Color {
     return c.Color{ .r = @intCast(color.r), .b = @intCast(color.b), .g = @intCast(color.g), .a = @intCast(color.a) };
 }
 
-pub fn dvuiRectToRaylib(rect: dvui.Rect) c.Rectangle {
+pub fn dvuiRectToRaylib(rect: dvui.Rect.Physical) c.Rectangle {
     // raylib multiplies everything internally by the monitor scale, so we
     // have to divide by that
-    const r = rect.scale(1 / dvui.windowNaturalScale());
+    const r = rect.toNatural();
     return c.Rectangle{ .x = r.x, .y = r.y, .width = r.w, .height = r.h };
+}
+
+pub fn main() !void {
+    const app = dvui.App.get() orelse return error.DvuiAppNotDefined;
+
+    var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
+    const gpa = gpa_instance.allocator();
+    defer _ = gpa_instance.deinit();
+
+    const init_opts = app.config.get();
+
+    // init Raylib backend (creates OS window)
+    // initWindow() means the backend calls CloseWindow for you in deinit()
+    var b = try RaylibBackend.initWindow(.{
+        .gpa = gpa,
+        .size = init_opts.size,
+        .min_size = init_opts.min_size,
+        .max_size = init_opts.max_size,
+        .vsync = init_opts.vsync,
+        .title = init_opts.title,
+        .icon = init_opts.icon,
+    });
+    defer b.deinit();
+    b.log_events = true;
+
+    // init dvui Window (maps onto a single OS window)
+    var win = try dvui.Window.init(@src(), gpa, b.backend(), .{});
+    defer win.deinit();
+
+    if (app.initFn) |initFn| initFn(&win);
+    defer if (app.deinitFn) |deinitFn| deinitFn();
+
+    main_loop: while (true) {
+        c.BeginDrawing();
+
+        // Raylib does not support waiting with event interruption, so dvui
+        // can't do variable framerate.  So can't call win.beginWait() or
+        // win.waitTime().
+        try win.begin(std.time.nanoTimestamp());
+
+        // send all events to dvui for processing
+        const quit = try b.addAllEvents(&win);
+        if (quit) break :main_loop;
+
+        // if dvui widgets might not cover the whole window, then need to clear
+        // the previous frame's render
+        b.clear();
+
+        const res = try app.frameFn();
+
+        // marks end of dvui frame, don't call dvui functions after this
+        // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
+        const end_micros = try win.end(.{});
+        const wait_event_micros = win.waitTime(end_micros, null);
+
+        // cursor management
+        b.setCursor(win.cursorRequested());
+
+        if (wait_event_micros == std.math.maxInt(u32)) {
+            c.EnableEventWaiting();
+            // render frame to OS
+            c.EndDrawing();
+            c.DisableEventWaiting();
+        } else {
+            // render frame to OS
+            c.EndDrawing();
+
+            // should investigate raylib with SUPPORT_CUSTOM_FRAME_CONTROL that
+            // could let us do slightly better than this
+            // * if an event came in before EndDrawing, then we will wait anyway
+
+            // wait with timeout
+            const timeout: f64 = @as(f64, @floatFromInt(wait_event_micros)) / 1_000_000.0;
+            c.glfwWaitEventsTimeout(timeout);
+        }
+
+        if (res != .ok) break :main_loop;
+    }
+}
+
+test {
+    //std.debug.print("raylib backend test\n", .{});
+    std.testing.refAllDecls(@This());
 }

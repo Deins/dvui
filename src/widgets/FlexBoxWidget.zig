@@ -10,11 +10,16 @@ const WidgetData = dvui.WidgetData;
 
 const FlexBoxWidget = @This();
 
-pub const InitOptions = struct {};
+pub const InitOptions = struct {
+    /// Imitates `justify-content` in CSS Flexbox
+    justify_content: ContentPosition = .center,
+};
+
+pub const ContentPosition = enum { start, center };
 
 wd: WidgetData = undefined,
 init_options: InitOptions = undefined,
-prevClip: Rect = Rect{},
+prevClip: Rect.Physical = .{},
 insert_pt: dvui.Point = .{},
 row_size: Size = .{},
 max_row_width: f32 = 0.0,
@@ -52,7 +57,7 @@ pub fn data(self: *FlexBoxWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *FlexBoxWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+pub fn rectFor(self: *FlexBoxWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
     _ = e;
     _ = g;
@@ -80,7 +85,10 @@ pub fn rectFor(self: *FlexBoxWidget, id: u32, min_size: Size, e: Options.Expand,
     }
 
     var ret = Rect.fromPoint(self.insert_pt).toSize(min_size);
-    ret.x += (self.wd.contentRect().w - self.max_row_width_prev) / 2;
+    switch (self.init_options.justify_content) {
+        .start => {},
+        .center => ret.x += (self.wd.contentRect().w - self.max_row_width_prev) / 2,
+    }
 
     self.insert_pt.x += min_size.w;
 
@@ -111,4 +119,8 @@ pub fn deinit(self: *FlexBoxWidget) void {
     self.wd.minSizeSetAndRefresh();
     self.wd.minSizeReportToParent();
     dvui.parentReset(self.wd.id, self.wd.parent);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

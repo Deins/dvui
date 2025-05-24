@@ -17,8 +17,8 @@ pub var defaults: Options = .{
 
 prev_rendering: bool = undefined,
 wd: WidgetData = undefined,
-prev_windowId: u32 = 0,
-prevClip: Rect = Rect{},
+prev_windowId: dvui.WidgetId = undefined,
+prevClip: Rect.Physical = .{},
 scale_val: f32 = undefined,
 scaler: dvui.ScaleWidget = undefined,
 
@@ -38,7 +38,7 @@ pub fn init(src: std.builtin.SourceLocation, opts_in: Options) FloatingWidget {
     self.scale_val = dvui.parentGet().screenRectScale(Rect{}).s / dvui.windowNaturalScale();
     var opts = opts_in;
     if (opts.min_size_content) |msc| {
-        opts.min_size_content = msc.scale(self.scale_val);
+        opts.min_size_content = msc.scale(self.scale_val, Size);
     }
 
     // passing options.rect will stop WidgetData.init from calling
@@ -46,12 +46,12 @@ pub fn init(src: std.builtin.SourceLocation, opts_in: Options) FloatingWidget {
     // normal layout
     self.wd = WidgetData.init(src, .{ .subwindow = true }, defaults.override(opts).override(.{ .rect = opts.rect orelse .{} }));
 
-    self.prev_rendering = dvui.renderingSet(false);
-
     return self;
 }
 
 pub fn install(self: *FloatingWidget) !void {
+    self.prev_rendering = dvui.renderingSet(false);
+
     dvui.parentSet(self.widget());
 
     self.prev_windowId = dvui.subwindowCurrentSet(self.wd.id, null).id;
@@ -59,14 +59,15 @@ pub fn install(self: *FloatingWidget) !void {
     const rs = self.wd.rectScale();
 
     try dvui.subwindowAdd(self.wd.id, self.wd.rect, rs.r, false, self.prev_windowId);
-    dvui.captureMouseMaintain(self.wd.id);
+    dvui.captureMouseMaintain(.{ .id = self.wd.id, .rect = rs.r, .subwindow_id = self.wd.id });
     try self.wd.register();
 
     // clip to just our window (using clipSet since we are not inside our parent)
     self.prevClip = dvui.clipGet();
-    dvui.clipSet(rs.r);
+    dvui.clipSet(dvui.windowRectPixels());
+    _ = dvui.clip(rs.r);
 
-    self.scaler = dvui.ScaleWidget.init(@src(), self.scale_val, .{ .expand = .both });
+    self.scaler = dvui.ScaleWidget.init(@src(), .{ .scale = &self.scale_val }, .{ .expand = .both });
     try self.scaler.install();
 }
 
@@ -78,7 +79,7 @@ pub fn data(self: *FloatingWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *FloatingWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+pub fn rectFor(self: *FloatingWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
     return dvui.placeIn(self.wd.contentRect().justSize(), min_size, e, g);
 }
@@ -114,4 +115,8 @@ pub fn deinit(self: *FloatingWidget) void {
     _ = dvui.subwindowCurrentSet(self.prev_windowId, null);
     dvui.clipSet(self.prevClip);
     _ = dvui.renderingSet(self.prev_rendering);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

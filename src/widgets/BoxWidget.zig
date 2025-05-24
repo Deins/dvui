@@ -82,7 +82,7 @@ pub fn data(self: *BoxWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *BoxWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+pub fn rectFor(self: *BoxWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
     var current_weight: f32 = 0.0;
     if (self.equal_space or (self.dir == .horizontal and e.isHorizontal()) or (self.dir == .vertical and e.isVertical())) {
@@ -220,4 +220,8 @@ pub fn deinit(self: *BoxWidget) void {
     dvui.dataSet(null, self.wd.id, "_data", Data{ .total_weight_prev = self.total_weight, .min_space_taken_prev = self.min_space_taken });
 
     dvui.parentReset(self.wd.id, self.wd.parent);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

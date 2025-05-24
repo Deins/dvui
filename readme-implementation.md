@@ -217,7 +217,7 @@ Special Events
   * represents the final mouse position for this frame
   * used to set cursor and sometimes hover state
 
-Sometimes a widget will just want to observe events but not mark them as processed.  An example is how to differentiate ctrl-click from normal click.  In a low framerate situation, we can't rely on checking the current keyboard state when the click happens. This way the widget can watch all keyboard events and keep track of the ctrl state properly interleaved with mouse events.
+Sometimes a widget will just want to observe events but not mark them as processed.  An example is how to differentiate a click while holding a non-modifier key (like "a") from normal click.  In a low framerate situation, we can't rely on checking the current keyboard state when the click happens. This way the widget can watch all keyboard events and keep track of the key state properly interleaved with mouse events.
 
 
 ## Min Size and Layout
@@ -278,9 +278,9 @@ The drawing functions are:
 - `renderText()` - single line of text
 - `renderIcon()` - tvg icon
 - `renderImage()` - raster image via stb_image
+- `renderTexture()` - texture from `textureCreate()` or `textureCreateTarget()`
 - `pathFillConvex()` - fill convex path (see below)
 - `pathStroke()` - stroke path (see below)
-- `pathStrokeAfter()` - stroke path (see below) but done after everything else (used for the focus highlight so it can draw over other widgets)
-
-Currently there is a single implicit path.  `pathAddPoint()`, `pathAddRect()`, and `pathAddArc()` add to the path, and `pathFillConvex()` and `pathStroke()` clear the path.
+- `Rect.fill()` - convenience for making and filling a rounded rect
+- `Rect.stroke()` - convenience for making and stroking a rounded rect
 

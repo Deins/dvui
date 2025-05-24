@@ -38,16 +38,24 @@ pub fn install(self: *IconWidget) !void {
     try self.wd.borderAndBackground(.{});
 }
 
+pub fn data(self: *IconWidget) *WidgetData {
+    return &self.wd;
+}
+
 pub fn matchEvent(self: *IconWidget, e: *dvui.Event) bool {
     return dvui.eventMatchSimple(e, &self.wd);
 }
 
 pub fn draw(self: *IconWidget) !void {
     const rs = self.wd.parent.screenRectScale(self.wd.contentRect());
-    try dvui.renderIcon(self.name, self.tvg_bytes, rs, self.wd.options.rotationGet(), self.wd.options.color(.text));
+    try dvui.renderIcon(self.name, self.tvg_bytes, rs, .{ .rotation = self.wd.options.rotationGet(), .colormod = self.wd.options.color(.text) });
 }
 
 pub fn deinit(self: *IconWidget) void {
     self.wd.minSizeSetAndRefresh();
     self.wd.minSizeReportToParent();
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

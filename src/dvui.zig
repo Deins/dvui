@@ -1,64 +1,112 @@
+//! [DVUI](https://david-vanderson.github.io/) is a general purpose Zig GUI toolkit.
+//!
+//! ![<Examples-demo.png>](Examples-demo.png)
+//!
+//! `dvui` module contains all the top level declarations provide all declarations required by client code. - i.e. `const dvui = @import("dvui");` is the only required import.
+//!
+//! Most UI element are expected to be created via high level function like `dvui.button`, which instantiate the corresponding lower level `dvui.ButtonWidget` for you.
+//!
+//! Custom widget can be done for simple cases my combining different high level function. For more advance usages, the user is expected to copy-paste the content of the high level functions as a starting point to combine the widgets on the lower level. More informations is available in the [project's readme](https://github.com/david-vanderson/dvui/blob/main/README.md).
+//!
+//! A complete list of available widgets can be found under `dvui.widgets`.
+//!
+//! ## Backends
+//! - [SDL](#dvui.backends.sdl)
+//! - [Web](#dvui.backends.web)
+//! - [rayLib](#dvui.backends.raylib)
+//! - [Dx11](#dvui.backends.dx11)
+//! - [Testing](#dvui.backends.testing)
+//!
 const builtin = @import("builtin");
 const std = @import("std");
-pub const backend_kind = @import("build_options").backend;
 pub const backend = @import("backend");
 const tvg = @import("tinyvg/tinyvg.zig");
 
 pub const math = std.math;
-pub const fnv = std.hash.Fnv1a_32;
+pub const fnv = std.hash.Fnv1a_64;
 
+pub const App = @import("App.zig");
 pub const Backend = @import("Backend.zig");
-pub const Color = @import("Color.zig");
+pub const Window = @import("Window.zig");
 pub const Examples = @import("Examples.zig");
+
+pub const Color = @import("Color.zig");
 pub const Event = @import("Event.zig");
 pub const Font = @import("Font.zig");
 pub const Options = @import("Options.zig");
-pub const Point = @import("Point.zig");
-pub const Rect = @import("Rect.zig");
+pub const Point = @import("Point.zig").Point;
+pub const Rect = @import("Rect.zig").Rect;
 pub const RectScale = @import("RectScale.zig");
 pub const ScrollInfo = @import("ScrollInfo.zig");
-pub const Size = @import("Size.zig");
+pub const Size = @import("Size.zig").Size;
 pub const Theme = @import("Theme.zig");
 pub const Vertex = @import("Vertex.zig");
 pub const Widget = @import("Widget.zig");
 pub const WidgetData = @import("WidgetData.zig");
+
 pub const entypo = @import("icons/entypo.zig");
-pub const AnimateWidget = @import("widgets/AnimateWidget.zig");
-pub const BoxWidget = @import("widgets/BoxWidget.zig");
-pub const CacheWidget = @import("widgets/CacheWidget.zig");
-pub const FlexBoxWidget = @import("widgets/FlexBoxWidget.zig");
-pub const ReorderWidget = @import("widgets/ReorderWidget.zig");
+
+// Note : Import widgets this way (i.e. importing them via `src/import_widgets.zig`
+// so they are nicely referenced in docs.
+// Having `pub const widgets = ` allow to refer the page with `dvui.widgets` in doccoment
+pub const widgets = @import("import_widgets.zig");
+pub const AnimateWidget = widgets.AnimateWidget;
+pub const BoxWidget = widgets.BoxWidget;
+pub const CacheWidget = widgets.CacheWidget;
+pub const ColorPickerWidget = widgets.ColorPickerWidget;
+pub const FlexBoxWidget = widgets.FlexBoxWidget;
+pub const ReorderWidget = widgets.ReorderWidget;
 pub const Reorderable = ReorderWidget.Reorderable;
-pub const ButtonWidget = @import("widgets/ButtonWidget.zig");
-pub const ContextWidget = @import("widgets/ContextWidget.zig");
-pub const FloatingWindowWidget = @import("widgets/FloatingWindowWidget.zig");
-pub const FloatingWidget = @import("widgets/FloatingWidget.zig");
-pub const FloatingMenuWidget = @import("widgets/FloatingMenuWidget.zig");
-pub const IconWidget = @import("widgets/IconWidget.zig");
-pub const ImageWidget = @import("widgets/ImageWidget.zig");
-pub const LabelWidget = @import("widgets/LabelWidget.zig");
-pub const MenuWidget = @import("widgets/MenuWidget.zig");
-pub const MenuItemWidget = @import("widgets/MenuItemWidget.zig");
-pub const OverlayWidget = @import("widgets/OverlayWidget.zig");
-pub const PanedWidget = @import("widgets/PanedWidget.zig");
-pub const ScaleWidget = @import("widgets/ScaleWidget.zig");
-pub const ScrollAreaWidget = @import("widgets/ScrollAreaWidget.zig");
-pub const ScrollBarWidget = @import("widgets/ScrollBarWidget.zig");
-pub const ScrollContainerWidget = @import("widgets/ScrollContainerWidget.zig");
-pub const TextEntryWidget = @import("widgets/TextEntryWidget.zig");
-pub const TextLayoutWidget = @import("widgets/TextLayoutWidget.zig");
-pub const VirtualParentWidget = @import("widgets/VirtualParentWidget.zig");
+pub const ButtonWidget = widgets.ButtonWidget;
+pub const ContextWidget = widgets.ContextWidget;
+pub const DropdownWidget = widgets.DropdownWidget;
+pub const FloatingWindowWidget = widgets.FloatingWindowWidget;
+pub const FloatingWidget = widgets.FloatingWidget;
+pub const FloatingTooltipWidget = widgets.FloatingTooltipWidget;
+pub const FloatingMenuWidget = widgets.FloatingMenuWidget;
+pub const IconWidget = widgets.IconWidget;
+pub const LabelWidget = widgets.LabelWidget;
+pub const MenuWidget = widgets.MenuWidget;
+pub const MenuItemWidget = widgets.MenuItemWidget;
+pub const OverlayWidget = widgets.OverlayWidget;
+pub const PanedWidget = widgets.PanedWidget;
+pub const PlotWidget = widgets.PlotWidget;
+pub const ScaleWidget = widgets.ScaleWidget;
+pub const ScrollAreaWidget = widgets.ScrollAreaWidget;
+pub const ScrollBarWidget = widgets.ScrollBarWidget;
+pub const ScrollContainerWidget = widgets.ScrollContainerWidget;
+pub const SuggestionWidget = widgets.SuggestionWidget;
+pub const TabsWidget = widgets.TabsWidget;
+pub const TextEntryWidget = widgets.TextEntryWidget;
+pub const TextLayoutWidget = widgets.TextLayoutWidget;
+pub const VirtualParentWidget = widgets.VirtualParentWidget;
 
 const se = @import("structEntry.zig");
 pub const structEntry = se.structEntry;
 pub const structEntryEx = se.structEntryEx;
 pub const structEntryAlloc = se.structEntryAlloc;
 pub const structEntryExAlloc = se.structEntryExAlloc;
+pub const StructFieldOptions = se.StructFieldOptions;
 
 pub const enums = @import("enums.zig");
+pub const easing = @import("easing.zig");
+pub const testing = @import("testing.zig");
 
-pub const wasm = (builtin.target.cpu.arch == .wasm32);
+pub const wasm = (builtin.target.cpu.arch == .wasm32 or builtin.target.cpu.arch == .wasm64);
 pub const useFreeType = !wasm;
+
+/// Used as a default maximum in various places:
+/// * Options.max_size_content
+/// * Font.textSizeEx max_width
+///
+/// This is a compromise between desires:
+/// * gives a decent range
+/// * is a normal number (not nan/inf) that works in normal math
+/// * can still have some extra added to it (like padding)
+/// * float precision in this range (0.125) is small enough so integer stuff still works
+///
+/// If positions/sizes are getting into this range, then likely something is going wrong.
+pub const max_float_safe: f32 = 1_000_000; // 1000000 and 1e6 for searchability
 
 pub const c = @cImport({
     // musl fails to compile saying missing "bits/setjmp.h", and nobody should
@@ -78,54 +126,115 @@ pub const c = @cImport({
         @cInclude("stb_truetype.h");
     }
 
+    if (wasm) {
+        @cDefine("STBI_NO_STDIO", "1");
+        @cDefine("STBI_NO_STDLIB", "1");
+        @cDefine("STBIW_NO_STDLIB", "1");
+    }
     @cInclude("stb_image.h");
+    @cInclude("stb_image_write.h");
 
     if (!wasm) {
         @cInclude("tinyfiledialogs.h");
     }
 });
 
-var ft2lib: if (useFreeType) c.FT_Library else void = undefined;
+pub var ft2lib: if (useFreeType) c.FT_Library else void = undefined;
 
 pub const Error = error{ OutOfMemory, InvalidUtf8, freetypeError, tvgError, stbiError };
 
 pub const log = std.log.scoped(.dvui);
 const dvui = @This();
 
-var current_window: ?*Window = null;
+pub const WidgetId = enum(u64) {
+    zero = 0,
+    _,
 
-/// Get the current dvui.Window which corresponds to the OS window we are
+    pub fn asU64(self: WidgetId) u64 {
+        return @intCast(@intFromEnum(self));
+    }
+
+    pub fn asUsize(self: WidgetId) usize {
+        // usize might be u32 (like on wasm32)
+        return @truncate(@intFromEnum(self));
+    }
+
+    pub fn format(self: *const WidgetId, comptime fmt: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        try std.fmt.format(writer, "{" ++ fmt ++ "}", .{self.asU64()});
+    }
+};
+
+/// Current `Window` (i.e. the one that widgets will be added to).
+/// Managed by `Window.begin` / `Window.end`
+pub var current_window: ?*Window = null;
+
+/// Get the current `dvui.Window` which corresponds to the OS window we are
 /// currently adding widgets to.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn currentWindow() *Window {
     return current_window orelse unreachable;
 }
 
 /// Get a pointer to the active theme.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn themeGet() *Theme {
     return &currentWindow().theme;
 }
 
 /// Set the active theme (copies into internal storage).
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn themeSet(theme: *const Theme) void {
     currentWindow().theme = theme.*;
 }
 
-/// Toggle showing the debug window (run during Window.end()).
+/// Toggle showing the debug window (run during `Window.end`).
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn toggleDebugWindow() void {
     var cw = currentWindow();
     cw.debug_window_show = !cw.debug_window_show;
 }
 
+pub const TagData = struct {
+    id: WidgetId,
+    rect: Rect.Physical,
+    visible: bool,
+};
+
+pub fn tag(name: []const u8, data: TagData) void {
+    var cw = currentWindow();
+    const existing_tag = cw.tags.fetchPut(name, .{ .data = data }) catch |err| blk: {
+        dvui.log.err("tag() \"{s}\" got {!} for id {x}\n", .{ name, err, data.id });
+
+        break :blk null;
+    };
+
+    if (existing_tag) |kv| {
+        if (kv.value.used) {
+            dvui.log.err("duplicate tag name \"{s}\" id {x} (highlighted in red); you may need to pass .{{.id_extra=<loop index>}} as widget options (see https://github.com/david-vanderson/dvui/blob/master/readme-implementation.md#widget-ids )\n", .{ name, data.id });
+            cw.debug_widget_id = data.id;
+        }
+    }
+}
+
+pub fn tagGet(name: []const u8) ?TagData {
+    var cw = currentWindow();
+    const saved_tag = cw.tags.getPtr(name);
+    if (saved_tag) |st| {
+        return st.data;
+    } else {
+        return null;
+    }
+}
+
+/// Help left-align widgets by adding horizontal spacers.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub const Alignment = struct {
-    id: u32 = undefined,
+    id: WidgetId = undefined,
     scale: f32 = undefined,
     max: ?f32 = undefined,
     next: f32 = undefined,
@@ -140,13 +249,15 @@ pub const Alignment = struct {
         };
     }
 
-    pub fn spacer(self: *Alignment, src: std.builtin.SourceLocation, id: u32) !void {
-        const uniqueId = dvui.parentGet().extendId(src, id);
-        var wd = try dvui.spacer(src, .{}, .{ .margin = self.margin(uniqueId), .id_extra = id });
+    /// Add spacer with margin.x so they all end at the same edge.
+    pub fn spacer(self: *Alignment, src: std.builtin.SourceLocation, id_extra: usize) !void {
+        const uniqueId = dvui.parentGet().extendId(src, id_extra);
+        var wd = try dvui.spacer(src, .{}, .{ .margin = self.margin(uniqueId), .id_extra = id_extra });
         self.record(uniqueId, &wd);
     }
 
-    pub fn margin(self: *Alignment, id: u32) Rect {
+    /// Get the margin needed to align this id's left edge.
+    pub fn margin(self: *Alignment, id: WidgetId) Rect {
         if (self.max) |m| {
             if (dvui.dataGet(null, id, "_align", f32)) |a| {
                 return .{ .x = @max(0, (m - a) / self.scale) };
@@ -156,7 +267,8 @@ pub const Alignment = struct {
         return .{};
     }
 
-    pub fn record(self: *Alignment, id: u32, wd: *WidgetData) void {
+    /// Record where this widget ended up so we can align it next frame.
+    pub fn record(self: *Alignment, id: WidgetId, wd: *WidgetData) void {
         const x = wd.rectScale().r.x;
         dvui.dataSet(null, id, "_align", x);
         self.next = @max(self.next, x);
@@ -173,50 +285,111 @@ pub const Alignment = struct {
     }
 };
 
+/// Controls how `placeOnScreen` will move start to avoid spawner.
+pub const PlaceOnScreenAvoid = enum {
+    /// Don't avoid spawner
+    none,
+    /// Move to right of spawner, or jump to left
+    horizontal,
+    /// Move to bottom of spawner, or jump to top
+    vertical,
+};
+
 /// Adjust start rect based on screen and spawner (like a context menu).
 ///
 /// When adding a floating widget or window, often we want to guarantee that it
 /// is visible.  Additionally, if start is logically connected to a spawning
 /// rect (like a context menu spawning a submenu), then jump to the opposite
 /// side if needed.
-pub fn placeOnScreen(screen: Rect, spawner: Rect, start: Rect) Rect {
+pub fn placeOnScreen(screen: Rect.Natural, spawner: Rect.Natural, avoid: PlaceOnScreenAvoid, start: Rect.Natural) Rect.Natural {
     var r = start;
-    if ((r.x + r.w) > (screen.x + screen.w)) {
-        if (spawner.w == 0) {
-            // if we were given just point, we can slide just to be on the screen
-            r.x = (screen.x + screen.w) - r.w;
-        } else {
-            // if spawner has content, then we want to jump to the other side
-            r.x = spawner.x - spawner.w - r.w;
+
+    // first move to avoid spawner
+    if (!r.intersect(spawner).empty()) {
+        switch (avoid) {
+            .none => {},
+            .horizontal => r.x = spawner.x + spawner.w,
+            .vertical => r.y = spawner.y + spawner.h,
         }
     }
 
-    // if off left, move
-    if (r.x < screen.x) {
-        r.x = screen.x;
+    // fix up if we ran off right side of screen
+    switch (avoid) {
+        .none, .vertical => {
+            // if off right, move
+            if ((r.x + r.w) > (screen.x + screen.w)) {
+                r.x = (screen.x + screen.w) - r.w;
+            }
+
+            // if off left, move
+            if (r.x < screen.x) {
+                r.x = screen.x;
+            }
+
+            // if off right, shrink to fit (but not to zero)
+            // - if we went to zero, then a window could get into a state where you can
+            // no longer see it or interact with it (like if you resize the OS window
+            // to zero size and back)
+            if ((r.x + r.w) > (screen.x + screen.w)) {
+                r.w = @max(24, (screen.x + screen.w) - r.x);
+            }
+        },
+        .horizontal => {
+            // if off right, is there more room on left
+            if ((r.x + r.w) > (screen.x + screen.w)) {
+                if ((spawner.x - screen.x) > (screen.x + screen.w - (spawner.x + spawner.w))) {
+                    // more room on left, switch
+                    r.x = spawner.x - r.w;
+
+                    if (r.x < screen.x) {
+                        // off left, shrink
+                        r.x = screen.x;
+                        r.w = spawner.x - screen.x;
+                    }
+                } else {
+                    // more room on left, shrink
+                    r.w = @max(24, (screen.x + screen.w) - r.x);
+                }
+            }
+        },
     }
 
-    // if off right, shrink to fit (but not to zero)
-    // - if we went to zero, then a window could get into a state where you can
-    // no longer see it or interact with it (like if you resize the OS window
-    // to zero size and back)
-    if ((r.x + r.w) > (screen.x + screen.w)) {
-        r.w = @max(24, (screen.x + screen.w) - r.x);
-    }
+    // fix up if we ran off bottom of screen
+    switch (avoid) {
+        .none, .horizontal => {
+            // if off bottom, first try moving
+            if ((r.y + r.h) > (screen.y + screen.h)) {
+                r.y = (screen.y + screen.h) - r.h;
+            }
 
-    // if off bottom, first try moving
-    if ((r.y + r.h) > (screen.y + screen.h)) {
-        r.y = (screen.y + screen.h) - r.h;
-    }
+            // if off top, move
+            if (r.y < screen.y) {
+                r.y = screen.y;
+            }
 
-    // if off top, move
-    if (r.y < screen.y) {
-        r.y = screen.y;
-    }
+            // if still off bottom, shrink to fit (but not to zero)
+            if ((r.y + r.h) > (screen.y + screen.h)) {
+                r.h = @max(24, (screen.y + screen.h) - r.y);
+            }
+        },
+        .vertical => {
+            // if off bottom, is there more room on top?
+            if ((r.y + r.h) > (screen.y + screen.h)) {
+                if ((spawner.y - screen.y) > (screen.y + screen.h - (spawner.y + spawner.h))) {
+                    // more room on top, switch
+                    r.y = spawner.y - r.h;
 
-    // if still off bottom, shrink to fit (but not to zero)
-    if ((r.y + r.h) > (screen.y + screen.h)) {
-        r.h = @max(24, (screen.y + screen.h) - r.y);
+                    if (r.y < screen.y) {
+                        // off top, shrink
+                        r.y = screen.y;
+                        r.h = spawner.y - screen.y;
+                    }
+                } else {
+                    // more room on bottom, shrink
+                    r.h = @max(24, (screen.y + screen.h) - r.y);
+                }
+            }
+        },
     }
 
     return r;
@@ -224,9 +397,9 @@ pub fn placeOnScreen(screen: Rect, spawner: Rect, start: Rect) Rect {
 
 /// Nanosecond timestamp for this frame.
 ///
-/// Updated during Window.begin().  Will not go backwards.
+/// Updated during `Window.begin`.  Will not go backwards.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn frameTimeNS() i128 {
     return currentWindow().frame_time_ns;
 }
@@ -239,6 +412,24 @@ pub const FontBytesEntry = struct {
     allocator: ?std.mem.Allocator,
 };
 
+/// Add font to be referenced later by name.
+///
+/// ttf_bytes are the bytes of the ttf file
+///
+/// If ttf_bytes_allocator is not null, it will be used to free ttf_bytes in
+/// `Window.deinit`.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn addFont(name: []const u8, ttf_bytes: []const u8, ttf_bytes_allocator: ?std.mem.Allocator) !void {
+    var cw = currentWindow();
+    try cw.font_bytes.put(name, FontBytesEntry{ .ttf_bytes = ttf_bytes, .allocator = ttf_bytes_allocator });
+
+    errdefer _ = cw.font_bytes.remove(name);
+
+    // Test if we can successfully open this font
+    _ = try dvui.fontCacheGet(.{ .name = name, .size = 14 });
+}
+
 const GlyphInfo = struct {
     advance: f32, // horizontal distance to move the pen
     leftBearing: f32, // horizontal distance from pen to bounding box left edge
@@ -248,15 +439,14 @@ const GlyphInfo = struct {
     uv: @Vector(2, f32),
 };
 
-const FontCacheEntry = struct {
+pub const FontCacheEntry = struct {
     used: bool = true,
     face: if (useFreeType) c.FT_Face else c.stbtt_fontinfo,
     scaleFactor: f32,
     height: f32,
     ascent: f32,
     glyph_info: std.AutoHashMap(u32, GlyphInfo),
-    texture_atlas: *anyopaque,
-    texture_atlas_size: Size,
+    texture_atlas: Texture,
     texture_atlas_regen: bool,
 
     pub fn deinit(self: *FontCacheEntry, win: *Window) void {
@@ -398,7 +588,7 @@ const FontCacheEntry = struct {
         };
     }
 
-    pub fn hash(font: Font) u32 {
+    pub fn hash(font: Font) u64 {
         var h = fnv.init();
         var bytes: []const u8 = undefined;
         if (currentWindow().font_bytes.get(font.name)) |fbe| {
@@ -450,7 +640,7 @@ const FontCacheEntry = struct {
             const x1: f32 = if (ret == 0) 0 else self.scaleFactor * @as(f32, @floatFromInt(ix1));
             const y1: f32 = if (ret == 0) 0 else self.scaleFactor * @as(f32, @floatFromInt(iy1));
 
-            //std.debug.print("codepoint {d} stbtt x0 {d} x1 {d} y0 {d} y1 {d}\n", .{ codepoint, x0, x1, y0, y1 });
+            //std.debug.print("{d} codepoint {d} stbtt x0 {d} {d} x1 {d} {d} y0 {d} {d} y1 {d} {d}\n", .{ self.ascent, codepoint, ix0, x0, ix1, x1, iy0, y0, iy1, y1 });
 
             gi = GlyphInfo{
                 .advance = self.scaleFactor * @as(f32, @floatFromInt(advanceWidth)),
@@ -474,7 +664,7 @@ const FontCacheEntry = struct {
 
     // doesn't scale the font or max_width, always stops at newlines
     pub fn textSizeRaw(fce: *FontCacheEntry, font_name: []const u8, text: []const u8, max_width: ?f32, end_idx: ?*usize, end_metric: Font.EndMetric) !Size {
-        const mwidth = max_width orelse 1000000.0;
+        const mwidth = max_width orelse max_float_safe;
 
         var x: f32 = 0;
         var minx: f32 = 0;
@@ -488,8 +678,34 @@ const FontCacheEntry = struct {
         var nearest_break: bool = false;
 
         var utf8 = (try std.unicode.Utf8View.init(text)).iterator();
+        var last_codepoint: u32 = 0;
+        var last_glyph_index: u32 = 0;
         while (utf8.nextCodepoint()) |codepoint| {
             const gi = try fce.glyphInfoGet(@as(u32, @intCast(codepoint)), font_name);
+
+            // kerning
+            if (last_codepoint != 0) {
+                if (useFreeType) {
+                    if (last_glyph_index == 0) last_glyph_index = c.FT_Get_Char_Index(fce.face, last_codepoint);
+                    const glyph_index: u32 = c.FT_Get_Char_Index(fce.face, codepoint);
+                    var kern: c.FT_Vector = undefined;
+                    FontCacheEntry.intToError(c.FT_Get_Kerning(fce.face, last_glyph_index, glyph_index, c.FT_KERNING_DEFAULT, &kern)) catch |err| {
+                        log.warn("renderText freetype error {!} trying to FT_Get_Kerning font {s} codepoints {d} {d}\n", .{ err, font_name, last_codepoint, codepoint });
+                        return error.freetypeError;
+                    };
+                    last_glyph_index = glyph_index;
+
+                    const kern_x: f32 = @as(f32, @floatFromInt(kern.x)) / 64.0;
+
+                    x += kern_x;
+                } else {
+                    const kern_adv: c_int = c.stbtt_GetCodepointKernAdvance(&fce.face, @as(c_int, @intCast(last_codepoint)), @as(c_int, @intCast(codepoint)));
+                    const kern_x = fce.scaleFactor * @as(f32, @floatFromInt(kern_adv));
+
+                    x += kern_x;
+                }
+            }
+            last_codepoint = codepoint;
 
             minx = @min(minx, x + gi.leftBearing);
             maxx = @max(maxx, x + gi.leftBearing + gi.w);
@@ -497,8 +713,6 @@ const FontCacheEntry = struct {
 
             miny = @min(miny, gi.topBearing);
             maxy = @max(maxy, gi.topBearing + gi.h);
-
-            // TODO: kerning
 
             if (codepoint == '\n') {
                 // newlines always terminate, and don't use any space
@@ -565,9 +779,10 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
     var entry: FontCacheEntry = undefined;
 
     // make debug texture atlas so we can see if something later goes wrong
-    const size = .{ .w = 10, .h = 10 };
-    const pixels = try cw.arena().alloc(u8, @as(usize, @intFromFloat(size.w * size.h)) * 4);
+    const size = Size{ .w = 10, .h = 10 };
+    const pixels = cw.arena().alloc(u8, @as(usize, @intFromFloat(size.w * size.h)) * 4) catch @panic("OOM");
     @memset(pixels, 255);
+    defer cw.arena().free(pixels);
 
     const min_pixel_size = 1;
 
@@ -606,8 +821,7 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
                     .height = @ceil(height),
                     .ascent = @floor(ascent),
                     .glyph_info = std.AutoHashMap(u32, GlyphInfo).init(cw.gpa),
-                    .texture_atlas = textureCreate(pixels.ptr, @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear),
-                    .texture_atlas_size = size,
+                    .texture_atlas = textureCreate(.cast(pixels), @intFromFloat(size.w), @intFromFloat(size.h), .linear),
                     .texture_atlas_regen = true,
                 };
 
@@ -631,18 +845,16 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
         entry = FontCacheEntry{
             .face = face,
             .scaleFactor = SF,
-            .height = height,
-            .ascent = ascent,
+            .height = @ceil(height),
+            .ascent = @floor(ascent),
             .glyph_info = std.AutoHashMap(u32, GlyphInfo).init(cw.gpa),
-            .texture_atlas = textureCreate(pixels.ptr, @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear),
-            .texture_atlas_size = size,
+            .texture_atlas = textureCreate(.cast(pixels), @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear),
             .texture_atlas_regen = true,
         };
     }
     //log.debug("- size {d} ascent {d} height {d}", .{ font.size, entry.ascent, entry.height });
 
     errdefer {
-        std.debug.assert(false);
         textureDestroyLater(entry.texture_atlas);
     }
     try cw.font_cache.putNoClobber(fontHash, entry);
@@ -650,12 +862,27 @@ pub fn fontCacheGet(font: Font) !*FontCacheEntry {
     return cw.font_cache.getPtr(fontHash).?;
 }
 
+/// A texture held by the backend.  Can be drawn with `renderTexture`.
+pub const Texture = struct {
+    ptr: *anyopaque,
+    width: u32,
+    height: u32,
+};
+
+/// A texture held by the backend that can be drawn onto.  See `Picture`.
+pub const TextureTarget = struct {
+    ptr: *anyopaque,
+    width: u32,
+    height: u32,
+};
+
+/// A texture that will be held by dvui until a frame it is not used.  This is
+/// how dvui caches icon and image rasterizations.
 pub const TextureCacheEntry = struct {
-    texture: *anyopaque,
-    size: Size,
+    texture: Texture,
     used: bool = true,
 
-    pub fn hash(bytes: []const u8, height: u32) u32 {
+    pub fn hash(bytes: []const u8, height: u32) u64 {
         var h = fnv.init();
         h.update(std.mem.asBytes(&bytes.ptr));
         h.update(std.mem.asBytes(&height));
@@ -665,7 +892,7 @@ pub const TextureCacheEntry = struct {
 
 /// Get the width of an icon at a specified height.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn iconWidth(name: []const u8, tvg_bytes: []const u8, height: f32) !f32 {
     if (height == 0) return 0.0;
     var stream = std.io.fixedBufferStream(tvg_bytes);
@@ -678,6 +905,9 @@ pub fn iconWidth(name: []const u8, tvg_bytes: []const u8, height: f32) !f32 {
     return height * @as(f32, @floatFromInt(parser.header.width)) / @as(f32, @floatFromInt(parser.header.height));
 }
 
+/// Render `tvg_bytes` at `height` into a `Texture`.  Name is for debugging.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn iconTexture(name: []const u8, tvg_bytes: []const u8, height: u32) !TextureCacheEntry {
     var cw = currentWindow();
     const icon_hash = TextureCacheEntry.hash(tvg_bytes, height);
@@ -691,7 +921,7 @@ pub fn iconTexture(name: []const u8, tvg_bytes: []const u8, height: u32) !Textur
         cw.arena(),
         cw.arena(),
         tvg.rendering.SizeHint{ .height = height },
-        @as(tvg.rendering.AntiAliasing, @enumFromInt(2)),
+        .x9,
         tvg_bytes,
     ) catch |err| {
         log.warn("iconTexture Tinyvg error {!} rendering icon {s} at height {d}\n", .{ err, name, height });
@@ -702,20 +932,22 @@ pub fn iconTexture(name: []const u8, tvg_bytes: []const u8, height: u32) !Textur
     var pixels: []u8 = undefined;
     pixels.ptr = @ptrCast(render.pixels.ptr);
     pixels.len = render.width * render.height * 4;
-    Color.alphaMultiplyPixels(pixels);
 
-    const texture = textureCreate(pixels.ptr, render.width, render.height, .linear);
+    const texture = textureCreate(.fromRGBA(pixels), render.width, render.height, .linear);
 
     //std.debug.print("created icon texture \"{s}\" ask height {d} size {d}x{d}\n", .{ name, height, render.width, render.height });
 
-    const entry = TextureCacheEntry{ .texture = texture, .size = .{ .w = @as(f32, @floatFromInt(render.width)), .h = @as(f32, @floatFromInt(render.height)) } };
+    const entry = TextureCacheEntry{ .texture = texture };
     try cw.texture_cache.put(icon_hash, entry);
 
     return entry;
 }
 
+/// Represents a deferred call to one of the render functions.  This is how
+/// dvui defers rendering of floating windows so they render on top of widgets
+/// that run later in the frame.
 pub const RenderCommand = struct {
-    clip: Rect,
+    clip: Rect.Physical,
     snap: bool,
     cmd: union(enum) {
         text: renderTextOptions,
@@ -724,29 +956,30 @@ pub const RenderCommand = struct {
             color: Color,
         },
         texture: struct {
-            tex: *anyopaque,
+            tex: Texture,
             rs: RectScale,
             opts: RenderTextureOptions,
         },
         pathFillConvex: struct {
-            path: std.ArrayList(Point),
-            color: Color,
+            path: PathSlice,
+            opts: PathFillConvexOptions,
         },
         pathStroke: struct {
-            path: std.ArrayList(Point),
-            closed: bool,
-            thickness: f32,
-            endcap_style: EndCapStyle,
-            color: Color,
+            path: PathSlice,
+            opts: PathStrokeOptions,
+        },
+        triangles: struct {
+            tri: Triangles,
+            tex: ?Texture,
         },
     },
 };
 
-/// Id of the currently focused subwindow.  Used by FloatingMenuWidget to
+/// Id of the currently focused subwindow.  Used by `FloatingMenuWidget` to
 /// detect when to stop showing.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn focusedSubwindowId() u32 {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn focusedSubwindowId() WidgetId {
     const cw = currentWindow();
     const sw = cw.subwindowFocused();
     return sw.id;
@@ -754,15 +987,18 @@ pub fn focusedSubwindowId() u32 {
 
 /// Focus a subwindow.
 ///
-/// If you are doing this in response to an event, you can pass that event's
-/// "num" to change the focus of any further events in the list.
+/// If you are doing this in response to an `Event`, you can pass that `Event`'s
+/// "num" to change the focus of any further `Event`s in the list.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn focusSubwindow(subwindow_id: ?u32, event_num: ?u16) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn focusSubwindow(subwindow_id: ?WidgetId, event_num: ?u16) void {
     currentWindow().focusSubwindowInternal(subwindow_id, event_num);
 }
 
-pub fn focusRemainingEvents(event_num: u16, focusWindowId: u32, focusWidgetId: ?u32) void {
+/// Helper used by `focusWidget`.  Overwrites the focus information for `Event`s with num >
+/// `event_num`.  This is how a button can get a tab, move focus to a textEntry,
+/// and that textEntry get a keydown all in the same frame.
+pub fn focusRemainingEvents(event_num: u16, focusWindowId: WidgetId, focusWidgetId: ?WidgetId) void {
     currentWindow().focusRemainingEventsInternal(event_num, focusWindowId, focusWidgetId);
 }
 
@@ -770,8 +1006,8 @@ pub fn focusRemainingEvents(event_num: u16, focusWindowId: u32, focusWidgetId: ?
 ///
 /// Any subwindows directly above it with "stay_above_parent_window" set will also be moved to stay above it.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn raiseSubwindow(subwindow_id: u32) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn raiseSubwindow(subwindow_id: WidgetId) void {
     const cw = currentWindow();
     // don't check against subwindows[0] - that's that main window
     var items = cw.subwindows.items[1..];
@@ -810,11 +1046,11 @@ pub fn raiseSubwindow(subwindow_id: u32) void {
 
 /// Focus a widget in the given subwindow (if null, the current subwindow).
 ///
-/// If you are doing this in response to an event, you can pass that event's
-/// "num" to change the focus of any further events in the list.
+/// If you are doing this in response to an `Event`, you can pass that `Event`'s
+/// num to change the focus of any further `Event`s in the list.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn focusWidget(id: ?u32, subwindow_id: ?u32, event_num: ?u16) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn focusWidget(id: ?WidgetId, subwindow_id: ?WidgetId, event_num: ?u16) void {
     const cw = currentWindow();
     const swid = subwindow_id orelse subwindowCurrentId();
     for (cw.subwindows.items) |*sw| {
@@ -825,6 +1061,27 @@ pub fn focusWidget(id: ?u32, subwindow_id: ?u32, event_num: ?u16) void {
                     focusRemainingEvents(en, sw.id, sw.focused_widgetId);
                 }
                 refresh(null, @src(), null);
+
+                if (id) |wid| {
+                    if (cw.last_registered_id_this_frame == wid) {
+                        cw.last_focused_id_this_frame = wid;
+                    } else {
+                        // walk parent chain
+                        var wd = cw.wd.parent.data();
+
+                        while (true) : (wd = wd.parent.data()) {
+                            if (wd.id == wid) {
+                                cw.last_focused_id_this_frame = wid;
+                                break;
+                            }
+
+                            if (wd.id == cw.wd.id) {
+                                // got to base Window
+                                break;
+                            }
+                        }
+                    }
+                }
             }
             break;
         }
@@ -833,8 +1090,8 @@ pub fn focusWidget(id: ?u32, subwindow_id: ?u32, event_num: ?u16) void {
 
 /// Id of the focused widget (if any) in the focused subwindow.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn focusedWidgetId() ?u32 {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn focusedWidgetId() ?WidgetId {
     const cw = currentWindow();
     for (cw.subwindows.items) |*sw| {
         if (cw.focused_subwindowId == sw.id) {
@@ -847,31 +1104,41 @@ pub fn focusedWidgetId() ?u32 {
 
 /// Id of the focused widget (if any) in the current subwindow.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn focusedWidgetIdInCurrentSubwindow() ?u32 {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn focusedWidgetIdInCurrentSubwindow() ?WidgetId {
     const cw = currentWindow();
     const sw = cw.subwindowCurrent();
     return sw.focused_widgetId;
 }
 
-/// Set cursor the app should use.
+/// Last widget id we saw this frame that was the focused widget.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// If two calls to this function return different values, then some widget
+/// that ran between them had focus.  This means one of:
+/// * a widget had focus when it called `WidgetData.register`
+/// * `focusWidget` with the id of the last widget to call `WidgetData.register`
+/// * `focusWidget` with the id of a widget in the parent chain
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn lastFocusedIdInFrame() WidgetId {
+    return currentWindow().last_focused_id_this_frame;
+}
+
+/// Set cursor the app should use if not already set this frame.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn cursorSet(cursor: enums.Cursor) void {
     const cw = currentWindow();
-    cw.cursor_requested = cursor;
+    if (cw.cursor_requested == null) {
+        cw.cursor_requested = cursor;
+    }
 }
 
-/// Add point to the current path.
-///
-/// Only valid between dvui.Window.begin() and end().
-pub fn pathAddPoint(p: Point) !void {
-    const cw = currentWindow();
-    try cw.path.append(p);
-}
+pub const PathArrayList = std.ArrayList(Point.Physical);
+pub const PathSlice = []const Point.Physical;
 
-/// Add rounded rect to current path.  Starts from top left, and ends at top
-/// right unclosed.
+/// Add rounded rect to path.  Starts from top left, and ends at top right
+/// unclosed.  See `Rect.fill`.
 ///
 /// radius values:
 /// - x is top-left corner
@@ -879,35 +1146,35 @@ pub fn pathAddPoint(p: Point) !void {
 /// - w is bottom-right corner
 /// - h is bottom-left corner
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn pathAddRect(r: Rect, radius: Rect) !void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn pathAddRect(path: *PathArrayList, r: Rect.Physical, radius: Rect.Physical) !void {
     var rad = radius;
     const maxrad = @min(r.w, r.h) / 2;
     rad.x = @min(rad.x, maxrad);
     rad.y = @min(rad.y, maxrad);
     rad.w = @min(rad.w, maxrad);
     rad.h = @min(rad.h, maxrad);
-    const tl = Point{ .x = r.x + rad.x, .y = r.y + rad.x };
-    const bl = Point{ .x = r.x + rad.h, .y = r.y + r.h - rad.h };
-    const br = Point{ .x = r.x + r.w - rad.w, .y = r.y + r.h - rad.w };
-    const tr = Point{ .x = r.x + r.w - rad.y, .y = r.y + rad.y };
-    try pathAddArc(tl, rad.x, math.pi * 1.5, math.pi, @abs(tl.y - bl.y) < 0.5);
-    try pathAddArc(bl, rad.h, math.pi, math.pi * 0.5, @abs(bl.x - br.x) < 0.5);
-    try pathAddArc(br, rad.w, math.pi * 0.5, 0, @abs(br.y - tr.y) < 0.5);
-    try pathAddArc(tr, rad.y, math.pi * 2.0, math.pi * 1.5, @abs(tr.x - tl.x) < 0.5);
+    const tl = Point.Physical{ .x = r.x + rad.x, .y = r.y + rad.x };
+    const bl = Point.Physical{ .x = r.x + rad.h, .y = r.y + r.h - rad.h };
+    const br = Point.Physical{ .x = r.x + r.w - rad.w, .y = r.y + r.h - rad.w };
+    const tr = Point.Physical{ .x = r.x + r.w - rad.y, .y = r.y + rad.y };
+    try pathAddArc(path, tl, rad.x, math.pi * 1.5, math.pi, @abs(tl.y - bl.y) < 0.5);
+    try pathAddArc(path, bl, rad.h, math.pi, math.pi * 0.5, @abs(bl.x - br.x) < 0.5);
+    try pathAddArc(path, br, rad.w, math.pi * 0.5, 0, @abs(br.y - tr.y) < 0.5);
+    try pathAddArc(path, tr, rad.y, math.pi * 2.0, math.pi * 1.5, @abs(tr.x - tl.x) < 0.5);
 }
 
-/// Add line segments creating an arc to the current path.
+/// Add line segments creating an arc to path.
 ///
-/// start >= end, both are radians that go clockwise from the positive x axis.
+/// `start` >= `end`, both are radians that go clockwise from the positive x axis.
 ///
-/// If skip_end, the final point will not be added.  Useful if the next
-/// addition to the path would duplicate the end of the arc.
+/// If `skip_end`, the final point will not be added.  Useful if the next
+/// addition to path would duplicate the end of the arc.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn pathAddArc(center: Point, radius: f32, start: f32, end: f32, skip_end: bool) !void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn pathAddArc(path: *PathArrayList, center: Point.Physical, radius: f32, start: f32, end: f32, skip_end: bool) !void {
     if (radius == 0) {
-        try pathAddPoint(center);
+        try path.append(center);
         return;
     }
 
@@ -927,73 +1194,103 @@ pub fn pathAddArc(center: Point, radius: f32, start: f32, end: f32, skip_end: bo
     var a: f32 = start;
     var i: u32 = 0;
     while (i < num) : (i += 1) {
-        try pathAddPoint(Point{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
+        try path.append(.{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
         a -= step;
     }
 
     if (!skip_end) {
         a = end;
-        try pathAddPoint(Point{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
+        try path.append(.{ .x = center.x + radius * @cos(a), .y = center.y + radius * @sin(a) });
     }
 }
 
-/// Fill the current path (must be convex) with col and free the path.
-///
-/// Only valid between dvui.Window.begin() and end().
-pub fn pathFillConvex(color: Color) !void {
-    const cw = currentWindow();
+pub const PathFillConvexOptions = struct {
+    blur: f32 = 1.0,
+    color: ?Color = null,
+    center: ?Point.Physical = null,
+};
 
-    if (cw.path.items.len < 3) {
-        cw.path.clearAndFree();
+/// Fill path (must be convex) with `color` (or `Theme.color_fill`).  See `Rect.fill`.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn pathFillConvex(path: PathSlice, opts: PathFillConvexOptions) !void {
+    if (path.len < 3) {
         return;
     }
 
     if (dvui.clipGet().empty()) {
-        cw.path.clearAndFree();
         return;
     }
 
+    var options = opts;
+    if (options.color == null) {
+        options.color = dvui.themeGet().color_fill;
+    }
+
+    const cw = currentWindow();
+
     if (!cw.render_target.rendering) {
-        var path_copy = std.ArrayList(Point).init(cw.arena());
-        try path_copy.appendSlice(cw.path.items);
-        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .pathFillConvex = .{ .path = path_copy, .color = color } } };
+        const path_copy = try cw.arena().dupe(Point.Physical, path);
+        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .pathFillConvex = .{ .path = path_copy, .opts = options } } };
 
         var sw = cw.subwindowCurrent();
         try sw.render_cmds.append(cmd);
-        cw.path.clearAndFree();
         return;
     }
 
-    var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), cw.path.items.len * 2);
-    defer vtx.deinit();
-    const idx_count = (cw.path.items.len - 2) * 3 + cw.path.items.len * 6;
-    var idx = try std.ArrayList(u16).initCapacity(cw.arena(), idx_count);
-    defer idx.deinit();
-    const col = color.alphaMultiply();
-    const col_trans = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+    var triangles = try pathFillConvexTriangles(path, options);
+    defer triangles.deinit(cw.arena());
+    try renderTriangles(triangles, null);
+}
 
-    var bounds = Rect{}; // w and h are maxx and maxy for now
-    bounds.x = std.math.floatMax(f32);
-    bounds.y = bounds.x;
-    bounds.w = -bounds.x;
-    bounds.h = -bounds.x;
+/// Generates triangles to fill path (must be convex).
+///
+/// Vertexes will have unset uv and color is alpha multiplied white fading to
+/// transparent at the edge.
+///
+/// blur is how many pixels wide the fade to transparent is, starting a half
+/// pixel inside. Currently blur < 1 is treated as 1, but might change.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn pathFillConvexTriangles(path: PathSlice, opts: PathFillConvexOptions) !Triangles {
+    if (path.len < 3) {
+        return .empty;
+    }
+
+    const cw = currentWindow();
+
+    var vtx_count = path.len;
+    var idx_count = (path.len - 2) * 3;
+    if (opts.blur > 0) {
+        vtx_count *= 2;
+        idx_count += path.len * 6;
+    }
+    if (opts.center) |_| {
+        vtx_count += 1;
+        idx_count += 6;
+    }
+
+    var builder = try Triangles.Builder.init(cw.arena(), vtx_count, idx_count);
+    errdefer comptime unreachable; // No errors from this point on
+
+    const col: Color.PMA = if (opts.color) |color| .fromColor(color) else .cast(.white);
 
     var i: usize = 0;
-    while (i < cw.path.items.len) : (i += 1) {
-        const ai = (i + cw.path.items.len - 1) % cw.path.items.len;
-        const bi = i % cw.path.items.len;
-        const ci = (i + 1) % cw.path.items.len;
-        const aa = cw.path.items[ai].diff(cw.render_target.offset);
-        const bb = cw.path.items[bi].diff(cw.render_target.offset);
-        const cc = cw.path.items[ci].diff(cw.render_target.offset);
+    while (i < path.len) : (i += 1) {
+        const ai: u16 = @intCast((i + path.len - 1) % path.len);
+        const bi: u16 = @intCast(i % path.len);
+        const ci: u16 = @intCast((i + 1) % path.len);
+        const aa = path[ai];
+        const bb = path[bi];
+        const cc = path[ci];
 
-        const diffab = Point.diff(aa, bb).normalize();
-        const diffbc = Point.diff(bb, cc).normalize();
+        const diffab = aa.diff(bb).normalize();
+        const diffbc = bb.diff(cc).normalize();
         // average of normals on each side
-        const halfnorm = (Point{ .x = (diffab.y + diffbc.y) / 2, .y = (-diffab.x - diffbc.x) / 2 }).normalize().scale(0.5);
+        var norm: Point.Physical = .{ .x = (diffab.y + diffbc.y) / 2, .y = (-diffab.x - diffbc.x) / 2 };
 
-        var v: Vertex = undefined;
         // inner vertex
+<<<<<<< HEAD
         v.pos.x = bb.x - halfnorm.x;
         v.pos.y = bb.y - halfnorm.y;
         v.col = col;
@@ -1029,335 +1326,526 @@ pub fn pathFillConvex(color: Color) !void {
         idx.appendAssumeCapacity(@as(u16, @intCast(ai * 2 + 1)));
         idx.appendAssumeCapacity(@as(u16, @intCast(bi * 2 + 1)));
         idx.appendAssumeCapacity(@as(u16, @intCast(bi * 2)));
+=======
+        const inside_len = @min(0.5, opts.blur / 2);
+        builder.appendVertex(.{
+            .pos = .{
+                .x = bb.x - norm.x * inside_len,
+                .y = bb.y - norm.y * inside_len,
+            },
+            .col = col,
+            .uv = undefined,
+        });
+
+        const idx_ai = if (opts.blur > 0) ai * 2 else ai;
+        const idx_bi = if (opts.blur > 0) bi * 2 else bi;
+
+        // indexes for fill
+        // triangles must be counter-clockwise (y going down) to avoid backface culling
+        if (opts.center) |_| {
+            builder.appendTriangles(&.{ @intCast(vtx_count - 1), idx_ai, idx_bi });
+        } else if (i > 1) {
+            builder.appendTriangles(&.{ 0, idx_ai, idx_bi });
+        }
+
+        if (opts.blur > 0) {
+            // scale averaged normal by angle between which happens to be the same as
+            // dividing by the length^2
+            const d2 = norm.x * norm.x + norm.y * norm.y;
+            if (d2 > 0.000001) {
+                norm = norm.scale(1.0 / d2, Point.Physical);
+            }
+
+            // limit distance our vertexes can be from the point to 2 * blur so
+            // very small angles don't produce huge geometries
+            const l = norm.length();
+            if (l > 2.0) {
+                norm = norm.scale(2.0 / l, Point.Physical);
+            }
+
+            // outer vertex
+            const outside_len = if (opts.blur <= 1) opts.blur / 2 else opts.blur - 0.5;
+            builder.appendVertex(.{
+                .pos = .{
+                    .x = bb.x + norm.x * outside_len,
+                    .y = bb.y + norm.y * outside_len,
+                },
+                .col = .transparent,
+                .uv = undefined,
+            });
+
+            // indexes for aa fade from inner to outer
+            // triangles must be counter-clockwise (y going down) to avoid backface culling
+            builder.appendTriangles(&.{
+                idx_ai,     idx_ai + 1, idx_bi,
+                idx_ai + 1, idx_bi + 1, idx_bi,
+            });
+        }
+>>>>>>> 2fd3c7fcd700ea9c0fd96d217d6ff878ba0d02d7
     }
 
-    // convert bounds back to normal rect
-    bounds.w = bounds.w - bounds.x;
-    bounds.h = bounds.h - bounds.y;
+    if (opts.center) |center| {
+        builder.appendVertex(.{ .pos = center, .col = col, .uv = undefined });
+    }
 
-    const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-    const clipr: ?Rect = if (bounds.clippedBy(clip_offset)) clip_offset else null;
-
-    cw.backend.drawClippedTriangles(null, vtx.items, idx.items, clipr);
-
-    cw.path.clearAndFree();
+    return builder.build();
 }
 
-pub const EndCapStyle = enum {
-    none,
-    square,
+pub const PathStrokeOptions = struct {
+    /// true => Render this after normal drawing on that subwindow.  Useful for
+    /// debugging on cross-gui drawing.
+    after: bool = false,
+
+    thickness: f32,
+    color: Color,
+
+    /// true => Stroke includes from path end to path start.
+    closed: bool = false,
+    endcap_style: EndCapStyle = .none,
+
+    pub const EndCapStyle = enum {
+        none,
+        square,
+    };
 };
 
-/// Stroke the current path and free the path.
+/// Stroke path as a series of line segments.  See `Rect.stroke`.
 ///
-/// * if closed_in, stroke includes from path end to path start.
-///
-/// Only valid between dvui.Window.begin() and end().
-///
-/// If you want to stroke a path on top of normal drawing, see pathStrokeAfter().
-pub fn pathStroke(closed_in: bool, thickness: f32, endcap_style: EndCapStyle, col: Color) !void {
-    try pathStrokeAfter(false, closed_in, thickness, endcap_style, col);
-}
-
-/// Stroke the current path and free the path, but render it after normal
-/// drawing on that subwindow (when after is true).  This is useful for
-/// debugging or cross-gui drawing (like an arrow pointing to a widget).
-///
-/// Only valid between dvui.Window.begin() and end().
-pub fn pathStrokeAfter(after: bool, closed_in: bool, thickness: f32, endcap_style: EndCapStyle, col: Color) !void {
-    const cw = currentWindow();
-
-    if (cw.path.items.len == 0) {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn pathStroke(path: PathSlice, opts: PathStrokeOptions) !void {
+    if (path.len == 0) {
         return;
     }
 
-    if (after or !cw.render_target.rendering) {
-        var path_copy = std.ArrayList(Point).init(cw.arena());
-        try path_copy.appendSlice(cw.path.items);
-        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .pathStroke = .{ .path = path_copy, .closed = closed_in, .thickness = thickness, .endcap_style = endcap_style, .color = col } } };
+    const cw = currentWindow();
+
+    if (opts.after or !cw.render_target.rendering) {
+        const path_copy = try cw.arena().dupe(Point.Physical, path);
+        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .pathStroke = .{ .path = path_copy, .opts = opts } } };
 
         var sw = cw.subwindowCurrent();
-        if (after) {
+        if (opts.after) {
             try sw.render_cmds_after.append(cmd);
         } else {
             try sw.render_cmds.append(cmd);
         }
 
-        cw.path.clearAndFree();
         return;
     }
 
-    try pathStrokeRaw(closed_in, thickness, endcap_style, col);
+    var triangles = try pathStrokeTriangles(path, opts);
+    defer triangles.deinit(cw.arena());
+    try renderTriangles(triangles, null);
 }
 
-pub fn pathStrokeRaw(closed_in: bool, thickness: f32, endcap_style: EndCapStyle, color: Color) !void {
+/// Generates triangles to stroke path.
+///
+/// Vertexes will have unset uv and color is alpha multiplied white fading to
+/// transparent at the edge.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn pathStrokeTriangles(path: PathSlice, opts: PathStrokeOptions) !Triangles {
+    if (dvui.clipGet().empty()) {
+        return .empty;
+    }
+
     const cw = currentWindow();
 
-    if (dvui.clipGet().empty()) {
-        cw.path.clearAndFree();
-        return;
-    }
-
-    if (cw.path.items.len == 1) {
+    if (path.len == 1) {
         // draw a circle with radius thickness at that point
-        const center = cw.path.items[0].diff(cw.render_target.offset);
+        const center = path[0];
 
-        // remove old path so we don't have a center point
-        cw.path.clearAndFree();
+        var tempPath: PathArrayList = .init(cw.arena());
+        defer tempPath.deinit();
 
-        try pathAddArc(center, thickness, math.pi * 2.0, 0, true);
-        try pathFillConvex(color);
-        cw.path.clearAndFree();
-        return;
+        try pathAddArc(&tempPath, center, opts.thickness, math.pi * 2.0, 0, true);
+        return try pathFillConvexTriangles(tempPath.items, .{ .color = opts.color, .blur = 1.0 });
     }
 
-    var closed: bool = closed_in;
-    if (cw.path.items.len == 2) {
-        // a single segment can't be closed
-        closed = false;
-    }
+    // a single segment can't be closed
+    const closed: bool = if (path.len == 2) false else opts.closed;
 
-    var vtx_count = cw.path.items.len * 4;
+    var vtx_count = path.len * 4;
     if (!closed) {
         vtx_count += 4;
     }
-    var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), vtx_count);
-    defer vtx.deinit();
-    var idx_count = (cw.path.items.len - 1) * 18;
+    var idx_count = (path.len - 1) * 18;
     if (closed) {
         idx_count += 18;
     } else {
         idx_count += 8 * 3;
     }
-    var idx = try std.ArrayList(u16).initCapacity(cw.arena(), idx_count);
-    defer idx.deinit();
-    const col = color.alphaMultiply();
-    const col_trans = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    var bounds = Rect{}; // w and h are maxx and maxy for now
-    bounds.x = std.math.floatMax(f32);
-    bounds.y = bounds.x;
-    bounds.w = -bounds.x;
-    bounds.h = -bounds.x;
+    var builder = try Triangles.Builder.init(cw.arena(), vtx_count, idx_count);
+    errdefer comptime unreachable; // No errors from this point on
+
+    const col: Color.PMA = .fromColor(opts.color);
 
     const aa_size = 1.0;
-    var vtx_start: usize = 0;
+    var vtx_start: u16 = 0;
     var i: usize = 0;
-    while (i < cw.path.items.len) : (i += 1) {
-        const ai = (i + cw.path.items.len - 1) % cw.path.items.len;
-        const bi = i % cw.path.items.len;
-        const ci = (i + 1) % cw.path.items.len;
-        const aa = cw.path.items[ai].diff(cw.render_target.offset);
-        var bb = cw.path.items[bi].diff(cw.render_target.offset);
-        const cc = cw.path.items[ci].diff(cw.render_target.offset);
+    while (i < path.len) : (i += 1) {
+        const ai: u16 = @intCast((i + path.len - 1) % path.len);
+        const bi: u16 = @intCast(i % path.len);
+        const ci: u16 = @intCast((i + 1) % path.len);
+        const aa = path[ai];
+        var bb = path[bi];
+        const cc = path[ci];
 
         // the amount to move from bb to the edge of the line
-        var halfnorm: Point = undefined;
+        var halfnorm: Point.Physical = undefined;
+        var diffab: Point.Physical = undefined;
 
-        var v: Vertex = undefined;
-        var diffab: Point = undefined;
-
-        if (!closed and ((i == 0) or ((i + 1) == cw.path.items.len))) {
+        if (!closed and ((i == 0) or ((i + 1) == path.len))) {
             if (i == 0) {
-                const diffbc = Point.diff(bb, cc).normalize();
+                const diffbc = bb.diff(cc).normalize();
                 // rotate by 90 to get normal
-                halfnorm = Point{ .x = diffbc.y / 2, .y = (-diffbc.x) / 2 };
+                halfnorm = .{ .x = diffbc.y / 2, .y = (-diffbc.x) / 2 };
 
-                if (endcap_style == .square) {
+                if (opts.endcap_style == .square) {
                     // square endcaps move bb out by thickness
-                    bb.x += diffbc.x * thickness;
-                    bb.y += diffbc.y * thickness;
+                    bb.x += diffbc.x * opts.thickness;
+                    bb.y += diffbc.y * opts.thickness;
                 }
 
                 // add 2 extra vertexes for endcap fringe
                 vtx_start += 2;
 
-                v.pos.x = bb.x - halfnorm.x * (thickness + aa_size) + diffbc.x * aa_size;
-                v.pos.y = bb.y - halfnorm.y * (thickness + aa_size) + diffbc.y * aa_size;
-                v.col = col_trans;
-                try vtx.append(v);
-                bounds.x = @min(bounds.x, v.pos.x);
-                bounds.y = @min(bounds.y, v.pos.y);
-                bounds.w = @max(bounds.w, v.pos.x);
-                bounds.h = @max(bounds.h, v.pos.y);
+                builder.appendVertex(.{
+                    .pos = .{
+                        .x = bb.x - halfnorm.x * (opts.thickness + aa_size) + diffbc.x * aa_size,
+                        .y = bb.y - halfnorm.y * (opts.thickness + aa_size) + diffbc.y * aa_size,
+                    },
+                    .col = .transparent,
+                    .uv = undefined,
+                });
 
-                v.pos.x = bb.x + halfnorm.x * (thickness + aa_size) + diffbc.x * aa_size;
-                v.pos.y = bb.y + halfnorm.y * (thickness + aa_size) + diffbc.y * aa_size;
-                v.col = col_trans;
-                try vtx.append(v);
-                bounds.x = @min(bounds.x, v.pos.x);
-                bounds.y = @min(bounds.y, v.pos.y);
-                bounds.w = @max(bounds.w, v.pos.x);
-                bounds.h = @max(bounds.h, v.pos.y);
+                builder.appendVertex(.{
+                    .pos = .{
+                        .x = bb.x + halfnorm.x * (opts.thickness + aa_size) + diffbc.x * aa_size,
+                        .y = bb.y + halfnorm.y * (opts.thickness + aa_size) + diffbc.y * aa_size,
+                    },
+                    .col = .transparent,
+                    .uv = undefined,
+                });
 
                 // add indexes for endcap fringe
-                try idx.append(@as(u16, @intCast(0)));
-                try idx.append(@as(u16, @intCast(vtx_start)));
-                try idx.append(@as(u16, @intCast(vtx_start + 1)));
-
-                try idx.append(@as(u16, @intCast(0)));
-                try idx.append(@as(u16, @intCast(1)));
-                try idx.append(@as(u16, @intCast(vtx_start)));
-
-                try idx.append(@as(u16, @intCast(1)));
-                try idx.append(@as(u16, @intCast(vtx_start + 2)));
-                try idx.append(@as(u16, @intCast(vtx_start)));
-
-                try idx.append(@as(u16, @intCast(1)));
-                try idx.append(@as(u16, @intCast(vtx_start + 2 + 1)));
-                try idx.append(@as(u16, @intCast(vtx_start + 2)));
-            } else if ((i + 1) == cw.path.items.len) {
-                diffab = Point.diff(aa, bb).normalize();
+                builder.appendTriangles(&.{
+                    0, vtx_start,         vtx_start + 1,
+                    0, 1,                 vtx_start,
+                    1, vtx_start + 2,     vtx_start,
+                    1, vtx_start + 2 + 1, vtx_start + 2,
+                });
+            } else if ((i + 1) == path.len) {
+                diffab = aa.diff(bb).normalize();
                 // rotate by 90 to get normal
-                halfnorm = Point{ .x = diffab.y / 2, .y = (-diffab.x) / 2 };
+                halfnorm = .{ .x = diffab.y / 2, .y = (-diffab.x) / 2 };
 
-                if (endcap_style == .square) {
+                if (opts.endcap_style == .square) {
                     // square endcaps move bb out by thickness
-                    bb.x -= diffab.x * thickness;
-                    bb.y -= diffab.y * thickness;
+                    bb.x -= diffab.x * opts.thickness;
+                    bb.y -= diffab.y * opts.thickness;
                 }
             }
         } else {
-            diffab = Point.diff(aa, bb).normalize();
-            const diffbc = Point.diff(bb, cc).normalize();
+            diffab = aa.diff(bb).normalize();
+            const diffbc = bb.diff(cc).normalize();
             // average of normals on each side
-            halfnorm = Point{ .x = (diffab.y + diffbc.y) / 2, .y = (-diffab.x - diffbc.x) / 2 };
+            halfnorm = .{ .x = (diffab.y + diffbc.y) / 2, .y = (-diffab.x - diffbc.x) / 2 };
 
             // scale averaged normal by angle between which happens to be the same as
             // dividing by the length^2
             const d2 = halfnorm.x * halfnorm.x + halfnorm.y * halfnorm.y;
             if (d2 > 0.000001) {
-                halfnorm = halfnorm.scale(0.5 / d2);
+                halfnorm = halfnorm.scale(0.5 / d2, Point.Physical);
             }
 
             // limit distance our vertexes can be from the point to 2 * thickness so
             // very small angles don't produce huge geometries
             const l = halfnorm.length();
             if (l > 2.0) {
-                halfnorm = halfnorm.scale(2.0 / l);
+                halfnorm = halfnorm.scale(2.0 / l, Point.Physical);
             }
         }
 
         // side 1 inner vertex
-        v.pos.x = bb.x - halfnorm.x * thickness;
-        v.pos.y = bb.y - halfnorm.y * thickness;
-        v.col = col;
-        try vtx.append(v);
-        bounds.x = @min(bounds.x, v.pos.x);
-        bounds.y = @min(bounds.y, v.pos.y);
-        bounds.w = @max(bounds.w, v.pos.x);
-        bounds.h = @max(bounds.h, v.pos.y);
+        builder.appendVertex(.{
+            .pos = .{
+                .x = bb.x - halfnorm.x * opts.thickness,
+                .y = bb.y - halfnorm.y * opts.thickness,
+            },
+            .col = col,
+            .uv = undefined,
+        });
 
         // side 1 AA vertex
-        v.pos.x = bb.x - halfnorm.x * (thickness + aa_size);
-        v.pos.y = bb.y - halfnorm.y * (thickness + aa_size);
-        v.col = col_trans;
-        try vtx.append(v);
-        bounds.x = @min(bounds.x, v.pos.x);
-        bounds.y = @min(bounds.y, v.pos.y);
-        bounds.w = @max(bounds.w, v.pos.x);
-        bounds.h = @max(bounds.h, v.pos.y);
+        builder.appendVertex(.{
+            .pos = .{
+                .x = bb.x - halfnorm.x * (opts.thickness + aa_size),
+                .y = bb.y - halfnorm.y * (opts.thickness + aa_size),
+            },
+            .col = .transparent,
+            .uv = undefined,
+        });
 
         // side 2 inner vertex
-        v.pos.x = bb.x + halfnorm.x * thickness;
-        v.pos.y = bb.y + halfnorm.y * thickness;
-        v.col = col;
-        try vtx.append(v);
-        bounds.x = @min(bounds.x, v.pos.x);
-        bounds.y = @min(bounds.y, v.pos.y);
-        bounds.w = @max(bounds.w, v.pos.x);
-        bounds.h = @max(bounds.h, v.pos.y);
+        builder.appendVertex(.{
+            .pos = .{
+                .x = bb.x + halfnorm.x * opts.thickness,
+                .y = bb.y + halfnorm.y * opts.thickness,
+            },
+            .col = col,
+            .uv = undefined,
+        });
 
         // side 2 AA vertex
-        v.pos.x = bb.x + halfnorm.x * (thickness + aa_size);
-        v.pos.y = bb.y + halfnorm.y * (thickness + aa_size);
-        v.col = col_trans;
-        try vtx.append(v);
-        bounds.x = @min(bounds.x, v.pos.x);
-        bounds.y = @min(bounds.y, v.pos.y);
-        bounds.w = @max(bounds.w, v.pos.x);
-        bounds.h = @max(bounds.h, v.pos.y);
+        builder.appendVertex(.{
+            .pos = .{
+                .x = bb.x + halfnorm.x * (opts.thickness + aa_size),
+                .y = bb.y + halfnorm.y * (opts.thickness + aa_size),
+            },
+            .col = .transparent,
+            .uv = undefined,
+        });
 
         // triangles must be counter-clockwise (y going down) to avoid backface culling
-        if (closed or ((i + 1) != cw.path.items.len)) {
-            // indexes for fill
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4)));
+        if (closed or ((i + 1) != path.len)) {
+            builder.appendTriangles(&.{
+                // indexes for fill
+                vtx_start + bi * 4,     vtx_start + bi * 4 + 2, vtx_start + ci * 4,
+                vtx_start + bi * 4 + 2, vtx_start + ci * 4 + 2, vtx_start + ci * 4,
 
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 2)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4)));
+                // indexes for aa fade from inner to outer side 1
+                vtx_start + bi * 4,     vtx_start + ci * 4 + 1, vtx_start + bi * 4 + 1,
+                vtx_start + bi * 4,     vtx_start + ci * 4,     vtx_start + ci * 4 + 1,
 
-            // indexes for aa fade from inner to outer side 1
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 1)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 1)));
-
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 1)));
-
-            // indexes for aa fade from inner to outer side 2
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 3)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 3)));
-
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 3)));
-            try idx.append(@as(u16, @intCast(vtx_start + ci * 4 + 2)));
-        } else if (!closed and (i + 1) == cw.path.items.len) {
+                // indexes for aa fade from inner to outer side 2
+                vtx_start + bi * 4 + 2, vtx_start + bi * 4 + 3, vtx_start + ci * 4 + 3,
+                vtx_start + bi * 4 + 2, vtx_start + ci * 4 + 3, vtx_start + ci * 4 + 2,
+            });
+        } else if (!closed and (i + 1) == path.len) {
             // add 2 extra vertexes for endcap fringe
-            v.pos.x = bb.x - halfnorm.x * (thickness + aa_size) - diffab.x * aa_size;
-            v.pos.y = bb.y - halfnorm.y * (thickness + aa_size) - diffab.y * aa_size;
-            v.col = col_trans;
-            try vtx.append(v);
-            bounds.x = @min(bounds.x, v.pos.x);
-            bounds.y = @min(bounds.y, v.pos.y);
-            bounds.w = @max(bounds.w, v.pos.x);
-            bounds.h = @max(bounds.h, v.pos.y);
+            builder.appendVertex(.{
+                .pos = .{
+                    .x = bb.x - halfnorm.x * (opts.thickness + aa_size) - diffab.x * aa_size,
+                    .y = bb.y - halfnorm.y * (opts.thickness + aa_size) - diffab.y * aa_size,
+                },
+                .col = .transparent,
+                .uv = undefined,
+            });
+            builder.appendVertex(.{
+                .pos = .{
+                    .x = bb.x + halfnorm.x * (opts.thickness + aa_size) - diffab.x * aa_size,
+                    .y = bb.y + halfnorm.y * (opts.thickness + aa_size) - diffab.y * aa_size,
+                },
+                .col = .transparent,
+                .uv = undefined,
+            });
 
-            v.pos.x = bb.x + halfnorm.x * (thickness + aa_size) - diffab.x * aa_size;
-            v.pos.y = bb.y + halfnorm.y * (thickness + aa_size) - diffab.y * aa_size;
-            v.col = col_trans;
-            try vtx.append(v);
-            bounds.x = @min(bounds.x, v.pos.x);
-            bounds.y = @min(bounds.y, v.pos.y);
-            bounds.w = @max(bounds.w, v.pos.x);
-            bounds.h = @max(bounds.h, v.pos.y);
-
-            // add indexes for endcap fringe
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 1)));
-
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
-
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 4)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 5)));
-
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 2)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 3)));
-            try idx.append(@as(u16, @intCast(vtx_start + bi * 4 + 5)));
+            builder.appendTriangles(&.{
+                // add indexes for endcap fringe
+                vtx_start + bi * 4,     vtx_start + bi * 4 + 4, vtx_start + bi * 4 + 1,
+                vtx_start + bi * 4 + 4, vtx_start + bi * 4,     vtx_start + bi * 4 + 2,
+                vtx_start + bi * 4 + 4, vtx_start + bi * 4 + 2, vtx_start + bi * 4 + 5,
+                vtx_start + bi * 4 + 2, vtx_start + bi * 4 + 3, vtx_start + bi * 4 + 5,
+            });
         }
     }
 
-    // convert bounds back to normal rect
-    bounds.w = bounds.w - bounds.x;
-    bounds.h = bounds.h - bounds.y;
-
-    const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-    const clipr: ?Rect = if (bounds.clippedBy(clip_offset)) clip_offset else null;
-
-    cw.backend.drawClippedTriangles(null, vtx.items, idx.items, clipr);
-
-    cw.path.clearAndFree();
+    return builder.build();
 }
 
-pub fn subwindowAdd(id: u32, rect: Rect, rect_pixels: Rect, modal: bool, stay_above_parent_window: ?u32) !void {
+pub const Triangles = struct {
+    vertexes: []Vertex,
+    indices: []u16,
+    bounds: Rect.Physical,
+
+    pub const empty = Triangles{
+        .vertexes = &.{},
+        .indices = &.{},
+        .bounds = .{},
+    };
+
+    /// A builder for Triangles that assumes the exact number of
+    /// vertexes and indices is known
+    pub const Builder = struct {
+        vertexes: std.ArrayListUnmanaged(Vertex),
+        indices: std.ArrayListUnmanaged(u16),
+        /// w and h is max_x and max_y
+        bounds: Rect.Physical = .{
+            .x = math.floatMax(f32),
+            .y = math.floatMax(f32),
+            .w = -math.floatMax(f32),
+            .h = -math.floatMax(f32),
+        },
+
+        pub fn init(allocator: std.mem.Allocator, vtx_count: usize, idx_count: usize) !Builder {
+            std.debug.assert(idx_count % 3 == 0);
+            return .{
+                .vertexes = .initBuffer(try allocator.alloc(Vertex, vtx_count)),
+                .indices = .initBuffer(try allocator.alloc(u16, idx_count)),
+            };
+        }
+
+        /// Appends a vertex and updates the bounds
+        pub fn appendVertex(self: *Builder, v: Vertex) void {
+            self.vertexes.appendAssumeCapacity(v);
+            self.bounds.x = @min(self.bounds.x, v.pos.x);
+            self.bounds.y = @min(self.bounds.y, v.pos.y);
+            self.bounds.w = @max(self.bounds.w, v.pos.x);
+            self.bounds.h = @max(self.bounds.h, v.pos.y);
+        }
+
+        /// Triangles must be counter-clockwise (y going down) to avoid backface culling
+        ///
+        /// Asserts that points is a multiple of 3
+        pub fn appendTriangles(self: *Builder, points: []const u16) void {
+            std.debug.assert(points.len % 3 == 0);
+            self.indices.appendSliceAssumeCapacity(points);
+        }
+
+        /// Asserts that the entire array has been filled
+        ///
+        /// The memory ownership is transferred to `Triangles`
+        pub fn build(self: *const Builder) Triangles {
+            std.debug.assert(self.vertexes.items.len == self.vertexes.capacity);
+            std.debug.assert(self.indices.items.len == self.indices.capacity);
+            return .{
+                .vertexes = self.vertexes.items,
+                .indices = self.indices.items,
+                // convert bounds w/h back to width/height
+                .bounds = self.bounds.toPoint(.{
+                    .x = self.bounds.w,
+                    .y = self.bounds.h,
+                }),
+            };
+        }
+    };
+
+    pub fn dupe(self: *const Triangles, allocator: std.mem.Allocator) !Triangles {
+        return .{
+            .vertexes = try allocator.dupe(Vertex, self.vertexes),
+            .indices = try allocator.dupe(u16, self.indices),
+            .bounds = self.bounds,
+        };
+    }
+
+    pub fn deinit(self: *Triangles, allocator: std.mem.Allocator) void {
+        allocator.free(self.indices);
+        allocator.free(self.vertexes);
+    }
+
+    /// Multiply `col` into vertex colors.
+    pub fn color(self: *Triangles, col: Color) void {
+        if (col.r == 0xff and col.g == 0xff and col.b == 0xff and col.a == 0xff)
+            return;
+
+        const pma_col: Color.PMA = .fromColor(col);
+        for (self.vertexes) |*v| {
+            v.col = v.col.multiply(pma_col);
+        }
+    }
+
+    /// Set uv coords of vertexes according to position in r (with r_uv coords
+    /// at corners), clamped to 0-1.
+    pub fn uvFromRectuv(self: *Triangles, r: Rect.Physical, r_uv: Rect) void {
+        for (self.vertexes) |*v| {
+            const xfrac = (v.pos.x - r.x) / r.w;
+            v.uv[0] = std.math.clamp(r_uv.x + xfrac * (r_uv.w - r_uv.x), 0, 1);
+
+            const yfrac = (v.pos.y - r.y) / r.h;
+            v.uv[1] = std.math.clamp(r_uv.y + yfrac * (r_uv.h - r_uv.y), 0, 1);
+        }
+    }
+
+    /// Rotate vertexes around origin by radians (positive clockwise).
+    pub fn rotate(self: *Triangles, origin: Point.Physical, radians: f32) void {
+        if (radians == 0) return;
+
+        const cos = @cos(radians);
+        const sin = @sin(radians);
+
+        for (self.vertexes) |*v| {
+            // get vector from origin to point
+            const d = v.pos.diff(origin);
+
+            // rotate vector
+            const rotated: Point.Physical = .{
+                .x = d.x * cos - d.y * sin,
+                .y = d.x * sin + d.y * cos,
+            };
+
+            v.pos = origin.plus(rotated);
+        }
+
+        // recalc bounds
+        var points: [4]Point.Physical = .{
+            self.bounds.topLeft(),
+            self.bounds.topRight(),
+            self.bounds.bottomRight(),
+            self.bounds.bottomLeft(),
+        };
+
+        for (&points) |*p| {
+            // get vector from origin to point
+            const d = p.diff(origin);
+
+            // rotate vector
+            const rotated: Point.Physical = .{
+                .x = d.x * cos - d.y * sin,
+                .y = d.x * sin + d.y * cos,
+            };
+
+            p.* = origin.plus(rotated);
+        }
+
+        self.bounds.x = @min(points[0].x, points[1].x, points[2].x, points[3].x);
+        self.bounds.y = @min(points[0].y, points[1].y, points[2].y, points[3].y);
+        self.bounds.w = @max(points[0].x, points[1].x, points[2].x, points[3].x);
+        self.bounds.w -= self.bounds.x;
+        self.bounds.h = @max(points[0].y, points[1].y, points[2].y, points[3].y);
+        self.bounds.h -= self.bounds.y;
+    }
+};
+
+pub fn renderTriangles(triangles: Triangles, tex: ?Texture) !void {
+    if (triangles.vertexes.len == 0) {
+        return;
+    }
+
+    if (dvui.clipGet().empty()) {
+        return;
+    }
+
+    const cw = currentWindow();
+
+    if (!cw.render_target.rendering) {
+        const tri_copy = try triangles.dupe(cw.arena());
+        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .triangles = .{ .tri = tri_copy, .tex = tex } } };
+
+        var sw = cw.subwindowCurrent();
+        try sw.render_cmds.append(cmd);
+        return;
+    }
+
+    const clipr: ?Rect.Physical = if (triangles.bounds.clippedBy(clipGet())) clipGet().offsetNegPoint(cw.render_target.offset) else null;
+
+    if (cw.render_target.offset.nonZero()) {
+        const offset = cw.render_target.offset;
+        for (triangles.vertexes) |*v| {
+            v.pos = v.pos.diff(offset);
+        }
+    }
+
+    cw.backend.drawClippedTriangles(tex, triangles.vertexes, triangles.indices, clipr);
+}
+
+/// Called by floating widgets to participate in subwindow stacking - the order
+/// in which multiple subwindows are drawn and which subwindow mouse events are
+/// tagged with.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn subwindowAdd(id: WidgetId, rect: Rect, rect_pixels: Rect.Physical, modal: bool, stay_above_parent_window: ?WidgetId) !void {
     const cw = currentWindow();
     const arena = cw.arena();
 
@@ -1407,11 +1895,15 @@ pub fn subwindowAdd(id: u32, rect: Rect, rect_pixels: Rect, modal: bool, stay_ab
 }
 
 pub const subwindowCurrentSetReturn = struct {
-    id: u32,
-    rect: Rect, // natural pixels
+    id: WidgetId,
+    rect: Rect.Natural,
 };
 
-pub fn subwindowCurrentSet(id: u32, rect: ?Rect) subwindowCurrentSetReturn {
+/// Used by floating windows (subwindows) to install themselves as the current
+/// subwindow (the subwindow that widgets run now will be in).
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn subwindowCurrentSet(id: WidgetId, rect: ?Rect.Natural) subwindowCurrentSetReturn {
     const cw = currentWindow();
     const ret: subwindowCurrentSetReturn = .{ .id = cw.subwindow_currentId, .rect = cw.subwindow_currentRect };
     cw.subwindow_currentId = id;
@@ -1421,35 +1913,45 @@ pub fn subwindowCurrentSet(id: u32, rect: ?Rect) subwindowCurrentSetReturn {
     return ret;
 }
 
-pub fn subwindowCurrentId() u32 {
+/// Id of current subwindow (the one widgets run now will be in).
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn subwindowCurrentId() WidgetId {
     const cw = currentWindow();
     return cw.subwindow_currentId;
 }
 
+/// Optional features you might want when doing a mouse/touch drag.
 pub const DragStartOptions = struct {
+    /// Use this cursor from when a drag starts to when it ends.
     cursor: ?enums.Cursor = null,
-    offset: Point = .{},
+
+    /// Offset of point of interest from the mouse.  Useful during a drag to
+    /// locate where to move the point of interest.
+    offset: Point.Physical = .{},
+
+    /// Used for cross-widget dragging.  See `draggingName`.
     name: []const u8 = "",
 };
 
 /// Prepare for a possible mouse drag.  This will detect a drag, and also a
 /// normal click (mouse down and up without a drag).
 ///
-/// * dragging() will return a Point once mouse motion has moved at least 3
+/// * `dragging` will return a Point once mouse motion has moved at least 3
 /// natural pixels away from p.
 ///
 /// * if cursor is non-null and a drag starts, use that cursor while dragging
 ///
-/// * offset given here can be retrieved later with dragOffset() - example is
+/// * offset given here can be retrieved later with `dragOffset` - example is
 /// dragging bottom right corner of floating window.  The drag can start
 /// anywhere in the hit area (passing the offset to the true corner), then
-/// during the drag, the dragOffset() is added to the current mouse location to
+/// during the drag, the `dragOffset` is added to the current mouse location to
 /// recover where to move the true corner.
 ///
-/// See dragStart() to immediately start a drag.
+/// See `dragStart` to immediately start a drag.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn dragPreStart(p: Point, options: DragStartOptions) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn dragPreStart(p: Point.Physical, options: DragStartOptions) void {
     const cw = currentWindow();
     cw.drag_state = .prestart;
     cw.drag_pt = p;
@@ -1459,18 +1961,18 @@ pub fn dragPreStart(p: Point, options: DragStartOptions) void {
 }
 
 /// Start a mouse drag from p.  Use when only dragging is possible (normal
-/// click would do nothing), otherwise use dragPreStart().
+/// click would do nothing), otherwise use `dragPreStart`.
 ///
 /// * if cursor is non-null, use that cursor while dragging
 ///
-/// * offset given here can be retrieved later with dragOffset() - example is
+/// * offset given here can be retrieved later with `dragOffset` - example is
 /// dragging bottom right corner of floating window.  The drag can start
 /// anywhere in the hit area (passing the offset to the true corner), then
-/// during the drag, the dragOffset() is added to the current mouse location to
+/// during the drag, the `dragOffset` is added to the current mouse location to
 /// recover where to move the true corner.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn dragStart(p: Point, options: DragStartOptions) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn dragStart(p: Point.Physical, options: DragStartOptions) void {
     const cw = currentWindow();
     cw.drag_state = .dragging;
     cw.drag_pt = p;
@@ -1479,31 +1981,31 @@ pub fn dragStart(p: Point, options: DragStartOptions) void {
     cw.drag_name = options.name;
 }
 
-/// Get offset previously given to dragPreStart() or dragStart().  See those.
+/// Get offset previously given to `dragPreStart` or `dragStart`.  See those.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn dragOffset() Point {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn dragOffset() Point.Physical {
     const cw = currentWindow();
     return cw.drag_offset;
 }
 
 /// If a mouse drag is happening, return the pixel difference to p from the
-/// previous dragging call or the drag starting location (from dragPreStart()
-/// or dragStart()).  Otherwise return null, meaning a drag hasn't started yet.
+/// previous dragging call or the drag starting location (from `dragPreStart`
+/// or `dragStart`).  Otherwise return null, meaning a drag hasn't started yet.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn dragging(p: Point) ?Point {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn dragging(p: Point.Physical) ?Point.Physical {
     const cw = currentWindow();
     switch (cw.drag_state) {
         .none => return null,
         .dragging => {
-            const dp = Point.diff(p, cw.drag_pt);
+            const dp = p.diff(cw.drag_pt);
             cw.drag_pt = p;
             return dp;
         },
         .prestart => {
-            const dp = Point.diff(p, cw.drag_pt);
-            const dps = dp.scale(1 / windowNaturalScale());
+            const dp = p.diff(cw.drag_pt);
+            const dps = dp.scale(1 / windowNaturalScale(), Point.Natural);
             if (@abs(dps.x) > 3 or @abs(dps.y) > 3) {
                 cw.drag_pt = p;
                 cw.drag_state = .dragging;
@@ -1515,11 +2017,11 @@ pub fn dragging(p: Point) ?Point {
     }
 }
 
-/// True if dragging and dragStart (or dragPreStart) was given name.
+/// True if `dragging` and `dragStart` (or `dragPreStart`) was given name.
 ///
 /// Useful for cross-widget drags.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn draggingName(name: []const u8) bool {
     const cw = currentWindow();
     return cw.drag_state == .dragging and cw.drag_name.len > 0 and std.mem.eql(u8, name, cw.drag_name);
@@ -1527,45 +2029,67 @@ pub fn draggingName(name: []const u8) bool {
 
 /// Stop any mouse drag.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn dragEnd() void {
     const cw = currentWindow();
     cw.drag_state = .none;
 }
 
 /// The difference between the final mouse position this frame and last frame.
-/// Use mouseTotalMotion().nonZero() to detect if any mouse motion has occured.
+/// Use `mouseTotalMotion().nonZero()` to detect if any mouse motion has occurred.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn mouseTotalMotion() Point {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn mouseTotalMotion() Point.Physical {
     const cw = currentWindow();
-    return Point.diff(cw.mouse_pt, cw.mouse_pt_prev);
+    return .diff(cw.mouse_pt, cw.mouse_pt_prev);
 }
 
-/// Pass a widget ID for that widget to receive all mouse events (wheel events
-/// still filtered normally).
+/// Used to track which widget holds mouse capture.
+pub const CaptureMouse = struct {
+    /// widget ID
+    id: WidgetId,
+    /// physical pixels (aka capture zone)
+    rect: Rect.Physical,
+    /// subwindow id the widget with capture is in
+    subwindow_id: WidgetId,
+};
+/// Capture the mouse for this widget's data.
+/// (i.e. `eventMatch` return true for this widget and false for all others)
+/// and capture is explicitly released when passing `null`.
 ///
-/// To keep mouse capture, must call captureMouseMaintain() each frame, and can
-/// call it every frame regardless of capture.
+/// Tracks the widget's id / subwindow / rect, so that `.position` mouse events can still
+/// be presented to widgets who's rect overlap with the widget holding the capture.
+/// (which is what you would expect for e.g. background highlight)
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn captureMouse(id: ?u32) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn captureMouse(wd: ?*WidgetData) void {
+    const cm = if (wd) |data| CaptureMouse{
+        .id = data.id,
+        .rect = data.borderRectScale().r,
+        .subwindow_id = subwindowCurrentId(),
+    } else null;
+    captureMouseCustom(cm);
+}
+/// In most cases, use `captureMouse` but if you want to customize the
+/// "capture zone" you can use this function instead.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn captureMouseCustom(cm: ?CaptureMouse) void {
     const cw = currentWindow();
-    cw.captureID = id;
-    if (id != null) {
+    cw.capture = cm;
+    if (cm != null) {
         cw.captured_last_frame = true;
     }
 }
-
 /// If the widget ID passed has mouse capture, this maintains that capture for
-/// the next frame.
+/// the next frame.  This is usually called for you in `WidgetData.init`.
 ///
 /// This can be called every frame regardless of capture.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn captureMouseMaintain(id: u32) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn captureMouseMaintain(cm: CaptureMouse) void {
     const cw = currentWindow();
-    if (cw.captureID == id) {
+    if (cw.capture != null and cw.capture.?.id == cm.id) {
         // to maintain capture, we must be on or above the
         // top modal window
         var i = cw.subwindows.items.len;
@@ -1575,6 +2099,7 @@ pub fn captureMouseMaintain(id: u32) void {
                 // maintaining capture
                 // either our floating window is above the top modal
                 // or there are no floating modal windows
+                cw.capture.?.rect = cm.rect;
                 cw.captured_last_frame = true;
                 return;
             } else if (sw.modal) {
@@ -1591,42 +2116,45 @@ pub fn captureMouseMaintain(id: u32) void {
 
 /// Test if the passed widget ID currently has mouse capture.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn captured(id: u32) bool {
-    return id == captureMouseId();
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn captured(id: WidgetId) bool {
+    if (captureMouseGet()) |cm| {
+        return id == cm.id;
+    }
+    return false;
 }
 
 /// Get the widget ID that currently has mouse capture or null if none.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn captureMouseId() ?u32 {
-    return currentWindow().captureID;
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn captureMouseGet() ?CaptureMouse {
+    return currentWindow().capture;
 }
 
 /// Get current screen rectangle in pixels that drawing is being clipped to.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn clipGet() Rect {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn clipGet() Rect.Physical {
     return currentWindow().clipRect;
 }
 
-/// Intersect the given rect (in pixels) with the current clipping rect and set
+/// Intersect the given physical rect with the current clipping rect and set
 /// as the new clipping rect.
 ///
 /// Returns the previous clipping rect, use clipSet to restore it.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn clip(new: Rect) Rect {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn clip(new: Rect.Physical) Rect.Physical {
     const cw = currentWindow();
     const ret = cw.clipRect;
     clipSet(cw.clipRect.intersect(new));
     return ret;
 }
 
-/// Set the current clipping rect to the given rect (in pixels).
+/// Set the current clipping rect to the given physical rect.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn clipSet(r: Rect) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn clipSet(r: Rect.Physical) void {
     currentWindow().clipRect = r;
 }
 
@@ -1636,7 +2164,7 @@ pub fn clipSet(r: Rect) void {
 ///
 /// Returns the previous setting.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn snapToPixelsSet(snap: bool) bool {
     const cw = currentWindow();
     const old = cw.snap_to_pixels;
@@ -1644,9 +2172,9 @@ pub fn snapToPixelsSet(snap: bool) bool {
     return old;
 }
 
-/// Get current snap_to_pixels setting.  See snapToPixelsSet().
+/// Get current snap_to_pixels setting.  See `snapToPixelsSet`.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn snapToPixels() bool {
     const cw = currentWindow();
     return cw.snap_to_pixels;
@@ -1655,19 +2183,19 @@ pub fn snapToPixels() bool {
 /// Requests another frame to be shown.
 ///
 /// This only matters if you are using dvui to manage the framerate (by calling
-/// Window.waitTime() and using the return value to wait with event
-/// interruption - for example sdl_backend.waitEventTimeout at the end of each
+/// `Window.waitTime` and using the return value to wait with event
+/// interruption - for example `sdl_backend.waitEventTimeout` at the end of each
 /// frame).
 ///
 /// src and id are for debugging, which is enabled by calling
-/// Window.debugRefresh(true).  The debug window has a toggle button for this.
+/// `Window.debugRefresh(true)`.  The debug window has a toggle button for this.
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
 /// pass a pointer to the Window you want to refresh.  In that case dvui will
 /// go through the backend because the gui thread might be waiting.
-pub fn refresh(win: ?*Window, src: std.builtin.SourceLocation, id: ?u32) void {
+pub fn refresh(win: ?*Window, src: std.builtin.SourceLocation, id: ?WidgetId) void {
     if (win) |w| {
         // we are being called from non gui thread, the gui thread might be
         // sleeping, so need to trigger a wakeup via the backend
@@ -1683,7 +2211,7 @@ pub fn refresh(win: ?*Window, src: std.builtin.SourceLocation, id: ?u32) void {
 
 /// Get the textual content of the system clipboard.  Caller must copy.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn clipboardText() error{OutOfMemory}![]const u8 {
     const cw = currentWindow();
     return cw.backend.clipboardText();
@@ -1691,7 +2219,7 @@ pub fn clipboardText() error{OutOfMemory}![]const u8 {
 
 /// Set the textual content of the system clipboard.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn clipboardTextSet(text: []const u8) error{OutOfMemory}!void {
     const cw = currentWindow();
     try cw.backend.clipboardTextSet(text);
@@ -1699,7 +2227,7 @@ pub fn clipboardTextSet(text: []const u8) error{OutOfMemory}!void {
 
 /// Ask the system to open the given url.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn openURL(url: []const u8) !void {
     const cw = currentWindow();
     try cw.backend.openURL(url);
@@ -1708,31 +2236,34 @@ pub fn openURL(url: []const u8) !void {
 /// Seconds elapsed between last frame and current.  This value can be quite
 /// high after a period with no user interaction.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn secondsSinceLastFrame() f32 {
     return currentWindow().secs_since_last_frame;
 }
 
 /// Average frames per second over the past 30 frames.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn FPS() f32 {
     return currentWindow().FPS();
 }
 
 /// Get the Widget that would be the parent of a new widget.
 ///
-/// dvui.parentGet().extendId(@src(), id_extra) is how new widgets get their
-/// id, and can be used to make a unique id without making a widget.
+/// ```zig
+/// dvui.parentGet().extendId(@src(), id_extra)
+/// ```
+/// is how new widgets get their id, and can be used to make a unique id without
+/// making a widget.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn parentGet() Widget {
     return currentWindow().wd.parent;
 }
 
-/// Make w the new parent widget.  See parentGet().
+/// Make w the new parent widget.  See `parentGet`.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn parentSet(w: Widget) void {
     const cw = currentWindow();
     cw.wd.parent = w;
@@ -1741,23 +2272,27 @@ pub fn parentSet(w: Widget) void {
 /// Make a previous parent widget the current parent.
 ///
 /// Pass the current parent's id.  This is used to detect a coding error where
-/// a widget's deinit() was accidentally not called.
-pub fn parentReset(id: u32, w: Widget) void {
+/// a widget's `.deinit()` was accidentally not called.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn parentReset(id: WidgetId, w: Widget) void {
     const cw = currentWindow();
     const actual_current = cw.wd.parent.data().id;
     if (id != actual_current) {
         cw.debug_widget_id = actual_current;
 
-        var ww = cw.wd.parent;
-        var wd = ww.data();
-        var widget_name = wd.options.name orelse "???";
+        var wd = cw.wd.parent.data();
 
         log.err("widget is not closed within its parent. did you forget to call `.deinit()`?", .{});
 
-        while (true) : (ww = ww.data().parent) {
-            wd = ww.data();
-            widget_name = wd.options.name orelse "???";
-            log.err("  {s} id={x} was initialized at [{s}:{d}:{d}]", .{ widget_name, wd.id, wd.src.file, wd.src.line, wd.src.column });
+        while (true) : (wd = wd.parent.data()) {
+            log.err("  {s}:{d} {s} {x}{s}", .{
+                wd.src.file,
+                wd.src.line,
+                wd.options.name orelse "???",
+                wd.id,
+                if (wd.id == cw.wd.id) "\n" else "",
+            });
 
             if (wd.id == cw.wd.id) {
                 // got to base Window
@@ -1768,6 +2303,11 @@ pub fn parentReset(id: u32, w: Widget) void {
     cw.wd.parent = w;
 }
 
+/// Set if dvui should immediately render, and return the previous setting.
+///
+/// If false, the render functions defer until `Window.end`.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn renderingSet(r: bool) bool {
     const cw = currentWindow();
     const ret = cw.render_target.rendering;
@@ -1776,61 +2316,62 @@ pub fn renderingSet(r: bool) bool {
 }
 
 /// Get the OS window size in natural pixels.  Physical pixels might be more on
-/// a hidpi screen or if the user has content scaling.  See windowRectPixels().
+/// a hidpi screen or if the user has content scaling.  See `windowRectPixels`.
 ///
 /// Natural pixels is the unit for subwindow sizing and placement.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn windowRect() Rect {
-    return currentWindow().wd.rect;
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn windowRect() Rect.Natural {
+    // Window.wd.rect is the definition of natural
+    return .cast(currentWindow().wd.rect);
 }
 
-/// Get the OS window size in pixels.  See windowRect().
+/// Get the OS window size in pixels.  See `windowRect`.
 ///
 /// Pixels is the unit for rendering and user input.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn windowRectPixels() Rect {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn windowRectPixels() Rect.Physical {
     return currentWindow().rect_pixels;
 }
 
 /// Get the Rect and scale factor for the OS window.  The Rect is in pixels,
 /// and the scale factor is how many pixels per natural pixel.  See
-/// windowRect().
+/// `windowRect`.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn windowRectScale() RectScale {
-    return .{ .r = currentWindow().rect_pixels, .s = currentWindow().natural_scale };
+    return currentWindow().rectScale();
 }
 
 /// The natural scale is how many pixels per natural pixel.  Useful for
 /// converting between user input and subwindow size/position.  See
-/// windowRect().
+/// `windowRect`.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn windowNaturalScale() f32 {
     return currentWindow().natural_scale;
 }
 
 /// True if this is the first frame we've seen this widget id, meaning we don't
-/// know its min size yet.  The widget will record its min size in deinit().
+/// know its min size yet.  The widget will record its min size in `.deinit()`.
 ///
 /// If a widget is not seen for a frame, its min size will be forgotten and
 /// firstFrame will return true the next frame we see it.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn firstFrame(id: u32) bool {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn firstFrame(id: WidgetId) bool {
     return minSizeGet(id) == null;
 }
 
 /// Get the min size recorded for id from last frame or null if id was not seen
 /// last frame.
 ///
-/// Usually you want minSize() to combine min size from last frame with a min
+/// Usually you want `minSize` to combine min size from last frame with a min
 /// size provided by the user code.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn minSizeGet(id: u32) ?Size {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn minSizeGet(id: WidgetId) ?Size {
     var cw = currentWindow();
     const saved_size = cw.min_sizes.getPtr(id);
     if (saved_size) |ss| {
@@ -1842,10 +2383,10 @@ pub fn minSizeGet(id: u32) ?Size {
 
 /// Return the maximum of min_size and the min size for id from last frame.
 ///
-/// See minSizeGet() to get only the min size from last frame.
+/// See `minSizeGet` to get only the min size from last frame.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn minSize(id: u32, min_size: Size) Size {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn minSize(id: WidgetId, min_size: Size) Size {
     var size = min_size;
 
     // Need to take the max of both given and previous.  ScrollArea could be
@@ -1858,28 +2399,35 @@ pub fn minSize(id: u32, min_size: Size) Size {
     return size;
 }
 
-/// Make a unique id from src and id_extra, without a parent widget.  This is
-/// how the initial parent widget id is created, and also toasts and dialogs
-/// from other threads.
+/// Make a unique id from `src` and `id_extra`, possibly starting with start
+/// (usually a parent widget id).  This is how the initial parent widget id is
+/// created, and also toasts and dialogs from other threads.
 ///
-/// See Widget.extendId() which does similar but on top of a parent id.
+/// See `Widget.extendId` which calls this with the widget id as start.
 ///
-/// dvui.parentGet().extendId(@src(), id_extra) is how new widgets get their
-/// id, and can be used to make a unique id without making a widget.
-pub fn hashSrc(src: std.builtin.SourceLocation, id_extra: usize) u32 {
+/// ```zig
+/// dvui.parentGet().extendId(@src(), id_extra)
+/// ```
+/// is how new widgets get their id, and can be used to make a unique id without
+/// making a widget.
+pub fn hashSrc(start: ?WidgetId, src: std.builtin.SourceLocation, id_extra: usize) WidgetId {
     var hash = fnv.init();
-    hash.update(src.file);
+    if (start) |s| {
+        hash.value = s.asU64();
+    }
+    hash.update(std.mem.asBytes(&src.module.ptr));
+    hash.update(std.mem.asBytes(&src.file.ptr));
     hash.update(std.mem.asBytes(&src.line));
     hash.update(std.mem.asBytes(&src.column));
     hash.update(std.mem.asBytes(&id_extra));
-    return hash.final();
+    return @enumFromInt(hash.final());
 }
 
 /// Make a new id by combining id with the contents of key.  This is how dvui
-/// tracks things in dataGet/Set, animation, and timer.
-pub fn hashIdKey(id: u32, key: []const u8) u32 {
+/// tracks things in `dataGet`/`dataSet`, `animation`, and `timer`.
+pub fn hashIdKey(id: WidgetId, key: []const u8) u64 {
     var h = fnv.init();
-    h.value = id;
+    h.value = id.asU64();
     h.update(key);
     return h.final();
 }
@@ -1888,11 +2436,13 @@ pub fn hashIdKey(id: u32, key: []const u8) u32 {
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
-/// If you want to store the contents of a slice, use dataSetSlice().
-pub fn dataSet(win: ?*Window, id: u32, key: []const u8, data: anytype) void {
+/// Stored data with the same id/key will be freed at next `win.end()`.
+///
+/// If you want to store the contents of a slice, use `dataSetSlice`.
+pub fn dataSet(win: ?*Window, id: WidgetId, key: []const u8, data: anytype) void {
     dataSetAdvanced(win, id, key, data, false, 1);
 }
 
@@ -1901,29 +2451,31 @@ pub fn dataSet(win: ?*Window, id: u32, key: []const u8, data: anytype) void {
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
-pub fn dataSetSlice(win: ?*Window, id: u32, key: []const u8, data: anytype) void {
+/// Stored data with the same id/key will be freed at next `win.end()`.
+///
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
+pub fn dataSetSlice(win: ?*Window, id: WidgetId, key: []const u8, data: anytype) void {
     dataSetSliceCopies(win, id, key, data, 1);
 }
 
-/// Same as dataSetSlice, but will copy data num_copies times all concatenated
+/// Same as `dataSetSlice`, but will copy data `num_copies` times all concatenated
 /// into a single slice.  Useful to get dvui to allocate a specific number of
 /// entries that you want to fill in after.
-pub fn dataSetSliceCopies(win: ?*Window, id: u32, key: []const u8, data: anytype, num_copies: usize) void {
+pub fn dataSetSliceCopies(win: ?*Window, id: WidgetId, key: []const u8, data: anytype, num_copies: usize) void {
     const dt = @typeInfo(@TypeOf(data));
-    if (dt == .Pointer and dt.Pointer.size == .Slice) {
-        if (dt.Pointer.sentinel) |s| {
-            dataSetAdvanced(win, id, key, @as([:@as(*const dt.Pointer.child, @alignCast(@ptrCast(s))).*]dt.Pointer.child, @constCast(data)), true, num_copies);
+    if (dt == .pointer and dt.pointer.size == .slice) {
+        if (dt.pointer.sentinel()) |s| {
+            dataSetAdvanced(win, id, key, @as([:s]dt.pointer.child, @constCast(data)), true, num_copies);
         } else {
-            dataSetAdvanced(win, id, key, @as([]dt.Pointer.child, @constCast(data)), true, num_copies);
+            dataSetAdvanced(win, id, key, @as([]dt.pointer.child, @constCast(data)), true, num_copies);
         }
-    } else if (dt == .Pointer and dt.Pointer.size == .One and @typeInfo(dt.Pointer.child) == .Array) {
-        const child_type = @typeInfo(dt.Pointer.child);
-        if (child_type.Array.sentinel) |s| {
-            dataSetAdvanced(win, id, key, @as([:@as(*const child_type.Array.child, @alignCast(@ptrCast(s))).*]child_type.Array.child, @constCast(data)), true, num_copies);
+    } else if (dt == .pointer and dt.pointer.size == .one and @typeInfo(dt.pointer.child) == .array) {
+        const child_type = @typeInfo(dt.pointer.child);
+        if (child_type.array.sentinel()) |s| {
+            dataSetAdvanced(win, id, key, @as([:s]child_type.array.child, @constCast(data)), true, num_copies);
         } else {
-            dataSetAdvanced(win, id, key, @as([]child_type.Array.child, @constCast(data)), true, num_copies);
+            dataSetAdvanced(win, id, key, @as([]child_type.array.child, @constCast(data)), true, num_copies);
         }
     } else {
         @compileError("dataSetSlice needs a slice or pointer to array, given " ++ @typeName(@TypeOf(data)));
@@ -1934,13 +2486,15 @@ pub fn dataSetSliceCopies(win: ?*Window, id: u32, key: []const u8, data: anytype
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
-/// If copy_slice is true, data must be a slice or pointer to array, and the
+/// Stored data with the same id/key will be freed at next `win.end()`.
+///
+/// If `copy_slice` is true, data must be a slice or pointer to array, and the
 /// contents are copied into internal storage. If false, only the slice itself
 /// (ptr and len) and stored.
-pub fn dataSetAdvanced(win: ?*Window, id: u32, key: []const u8, data: anytype, comptime copy_slice: bool, num_copies: usize) void {
+pub fn dataSetAdvanced(win: ?*Window, id: WidgetId, key: []const u8, data: anytype, comptime copy_slice: bool, num_copies: usize) void {
     if (win) |w| {
         // we are being called from non gui thread or outside begin()/end()
         w.dataSetAdvanced(id, key, data, copy_slice, num_copies);
@@ -1957,13 +2511,18 @@ pub fn dataSetAdvanced(win: ?*Window, id: u32, key: []const u8, data: anytype, c
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
-/// If you want a pointer to the stored data, use dataGetPtr().
+/// If you want a pointer to the stored data, use `dataGetPtr`.
 ///
+<<<<<<< HEAD
 /// If you want to get the contents of a stored slice, use dataGetSlice().
 pub inline fn dataGet(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?T {
+=======
+/// If you want to get the contents of a stored slice, use `dataGetSlice`.
+pub fn dataGet(win: ?*Window, id: WidgetId, key: []const u8, comptime T: type) ?T {
+>>>>>>> 2fd3c7fcd700ea9c0fd96d217d6ff878ba0d02d7
     if (dataGetInternal(win, id, key, T, false)) |bytes| {
         return @as(*T, @alignCast(@ptrCast(bytes.ptr))).*;
     } else {
@@ -1975,13 +2534,18 @@ pub inline fn dataGet(win: ?*Window, id: u32, key: []const u8, comptime T: type)
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
-/// If you want a pointer to the stored data, use dataGetPtrDefault().
+/// If you want a pointer to the stored data, use `dataGetPtrDefault`.
 ///
+<<<<<<< HEAD
 /// If you want to get the contents of a stored slice, use dataGetSlice().
 pub inline fn dataGetDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: T) T {
+=======
+/// If you want to get the contents of a stored slice, use `dataGetSlice`.
+pub fn dataGetDefault(win: ?*Window, id: WidgetId, key: []const u8, comptime T: type, default: T) T {
+>>>>>>> 2fd3c7fcd700ea9c0fd96d217d6ff878ba0d02d7
     if (dataGetInternal(win, id, key, T, false)) |bytes| {
         return @as(*T, @alignCast(@ptrCast(bytes.ptr))).*;
     } else {
@@ -1996,15 +2560,20 @@ pub inline fn dataGetDefault(win: ?*Window, id: u32, key: []const u8, comptime T
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
 /// Returns a pointer to internal storage, which will be freed after a frame
-/// where there is no call to any dataGet/dataSet functions for that id/key
+/// where there is no call to any `dataGet`/`dataSet` functions for that id/key
 /// combination.
 ///
+<<<<<<< HEAD
 /// If you want to get the contents of a stored slice, use dataGetSlice().
 pub inline fn dataGetPtrDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: T) *T {
+=======
+/// If you want to get the contents of a stored slice, use `dataGetSlice`.
+pub fn dataGetPtrDefault(win: ?*Window, id: WidgetId, key: []const u8, comptime T: type, default: T) *T {
+>>>>>>> 2fd3c7fcd700ea9c0fd96d217d6ff878ba0d02d7
     if (dataGetPtr(win, id, key, T)) |ptr| {
         return ptr;
     } else {
@@ -2017,15 +2586,20 @@ pub inline fn dataGetPtrDefault(win: ?*Window, id: u32, key: []const u8, comptim
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
 /// Returns a pointer to internal storage, which will be freed after a frame
-/// where there is no call to any dataGet/dataSet functions for that id/key
+/// where there is no call to any `dataGet`/`dataSet` functions for that id/key
 /// combination.
 ///
+<<<<<<< HEAD
 /// If you want to get the contents of a stored slice, use dataGetSlice().
 pub inline fn dataGetPtr(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?*T {
+=======
+/// If you want to get the contents of a stored slice, use `dataGetSlice`.
+pub fn dataGetPtr(win: ?*Window, id: WidgetId, key: []const u8, comptime T: type) ?*T {
+>>>>>>> 2fd3c7fcd700ea9c0fd96d217d6ff878ba0d02d7
     if (dataGetInternal(win, id, key, T, false)) |bytes| {
         return @as(*T, @alignCast(@ptrCast(bytes.ptr)));
     } else {
@@ -2035,28 +2609,28 @@ pub inline fn dataGetPtr(win: ?*Window, id: u32, key: []const u8, comptime T: ty
 
 /// Retrieve slice contents for given key associated with id.
 ///
-/// dataSetSlice() strips const from the slice type, so always call
-/// dataGetSlice() with a mutable slice type ([]u8, not []const u8).
+/// `dataSetSlice` strips const from the slice type, so always call
+/// `dataGetSlice` with a mutable slice type ([]u8, not []const u8).
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
 /// The returned slice points to internal storage, which will be freed after
-/// a frame where there is no call to any dataGet/dataSet functions for that
+/// a frame where there is no call to any `dataGet`/`dataSet` functions for that
 /// id/key combination.
-pub fn dataGetSlice(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?T {
+pub fn dataGetSlice(win: ?*Window, id: WidgetId, key: []const u8, comptime T: type) ?T {
     const dt = @typeInfo(T);
-    if (dt != .Pointer or dt.Pointer.size != .Slice) {
+    if (dt != .pointer or dt.pointer.size != .slice) {
         @compileError("dataGetSlice needs a slice, given " ++ @typeName(T));
     }
 
     if (dataGetInternal(win, id, key, T, true)) |bytes| {
-        if (dt.Pointer.sentinel) |sentinel| {
-            return @as([:@as(*const dt.Pointer.child, @alignCast(@ptrCast(sentinel))).*]align(@alignOf(dt.Pointer.child)) dt.Pointer.child, @alignCast(@ptrCast(std.mem.bytesAsSlice(dt.Pointer.child, bytes[0 .. bytes.len - @sizeOf(dt.Pointer.child)]))));
+        if (dt.pointer.sentinel()) |sentinel| {
+            return @as([:sentinel]align(@alignOf(dt.pointer.child)) dt.pointer.child, @alignCast(@ptrCast(std.mem.bytesAsSlice(dt.pointer.child, bytes[0 .. bytes.len - @sizeOf(dt.pointer.child)]))));
         } else {
-            return @as([]align(@alignOf(dt.Pointer.child)) dt.Pointer.child, @alignCast(std.mem.bytesAsSlice(dt.Pointer.child, bytes)));
+            return @as([]align(@alignOf(dt.pointer.child)) dt.pointer.child, @alignCast(std.mem.bytesAsSlice(dt.pointer.child, bytes)));
         }
     } else {
         return null;
@@ -2070,13 +2644,13 @@ pub fn dataGetSlice(win: ?*Window, id: u32, key: []const u8, comptime T: type) ?
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the data to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the data to.
 ///
 /// The returned slice points to internal storage, which will be freed after
-/// a frame where there is no call to any dataGet/dataSet functions for that
+/// a frame where there is no call to any `dataGet`/`dataSet` functions for that
 /// id/key combination.
-pub fn dataGetSliceDefault(win: ?*Window, id: u32, key: []const u8, comptime T: type, default: []const @typeInfo(T).Pointer.child) T {
+pub fn dataGetSliceDefault(win: ?*Window, id: WidgetId, key: []const u8, comptime T: type, default: []const @typeInfo(T).pointer.child) T {
     return dataGetSlice(win, id, key, T) orelse blk: {
         dataSetSlice(win, id, key, default);
         break :blk dataGetSlice(win, id, key, T).?;
@@ -2084,7 +2658,11 @@ pub fn dataGetSliceDefault(win: ?*Window, id: u32, key: []const u8, comptime T: 
 }
 
 // returns the backing slice of bytes if we have it
+<<<<<<< HEAD
 pub inline fn dataGetInternal(win: ?*Window, id: u32, key: []const u8, comptime T: type, slice: bool) ?[]u8 {
+=======
+pub fn dataGetInternal(win: ?*Window, id: WidgetId, key: []const u8, comptime T: type, slice: bool) ?[]u8 {
+>>>>>>> 2fd3c7fcd700ea9c0fd96d217d6ff878ba0d02d7
     if (win) |w| {
         // we are being called from non gui thread or outside begin()/end()
         return w.dataGetInternal(id, key, T, slice);
@@ -2097,13 +2675,14 @@ pub inline fn dataGetInternal(win: ?*Window, id: u32, key: []const u8, comptime 
     }
 }
 
-/// Remove key (and associated value if any) for given id.
+/// Remove key (and data if any) for given id.  The data will be freed at next
+/// `win.end()`.
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the dialog to.
-pub fn dataRemove(win: ?*Window, id: u32, key: []const u8) void {
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
+/// pass a pointer to the `Window` you want to add the dialog to.
+pub fn dataRemove(win: ?*Window, id: WidgetId, key: []const u8) void {
     if (win) |w| {
         // we are being called from non gui thread or outside begin()/end()
         return w.dataRemove(id, key);
@@ -2116,8 +2695,8 @@ pub fn dataRemove(win: ?*Window, id: u32, key: []const u8) void {
     }
 }
 
-/// Make the Rect a widget will get given the available space, the min size
-/// wanted, expand, and gravity.
+/// Return a rect that fits inside avail given the options. avail wins over
+/// `min_size`.
 pub fn placeIn(avail: Rect, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     var size = min_size;
 
@@ -2137,17 +2716,33 @@ pub fn placeIn(avail: Rect, min_size: Size, e: Options.Expand, g: Options.Gravit
             size = avail.size();
         },
         .ratio => {
-            if (min_size.w != 0 and min_size.h != 0) {
+            if (min_size.w > 0 and min_size.h > 0 and avail.w > 0 and avail.h > 0) {
                 const ratio = min_size.w / min_size.h;
-                const aratio = (avail.w - size.w) / (avail.h - size.h);
-                if (aratio > ratio) {
-                    // height is constraint
-                    size.w = avail.h * ratio;
-                    size.h = avail.h;
+                if (min_size.w > avail.w or min_size.h > avail.h) {
+                    // contracting
+                    const wratio = avail.w / min_size.w;
+                    const hratio = avail.h / min_size.h;
+                    if (wratio < hratio) {
+                        // width is constraint
+                        size.w = avail.w;
+                        size.h = @min(avail.h, wratio * min_size.h);
+                    } else {
+                        // height is constraint
+                        size.h = avail.h;
+                        size.w = @min(avail.w, hratio * min_size.w);
+                    }
                 } else {
-                    // width is constraint
-                    size.w = avail.w;
-                    size.h = avail.w / ratio;
+                    // expanding
+                    const aratio = (avail.w - size.w) / (avail.h - size.h);
+                    if (aratio > ratio) {
+                        // height is constraint
+                        size.w = @min(avail.w, avail.h * ratio);
+                        size.h = avail.h;
+                    } else {
+                        // width is constraint
+                        size.w = avail.w;
+                        size.h = @min(avail.h, avail.w / ratio);
+                    }
                 }
             }
         },
@@ -2160,37 +2755,45 @@ pub fn placeIn(avail: Rect, min_size: Size, e: Options.Expand, g: Options.Gravit
     return r;
 }
 
-/// Get the slice of Events for this frame.
+/// Get the slice of `Event`s for this frame.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn events() []Event {
     return currentWindow().events.items;
 }
 
-/// Wrapper around eventMatch for normal usage.
+/// Wrapper around `eventMatch` for normal usage.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn eventMatchSimple(e: *Event, wd: *WidgetData) bool {
     return eventMatch(e, .{ .id = wd.id, .r = wd.borderRectScale().r });
 }
 
+/// Data for matching events to widgets.  See `eventMatch`.
 pub const EventMatchOptions = struct {
-    id: u32,
-    r: Rect,
+    /// Id of widget, used to route non pointer events based on focus.
+    id: WidgetId,
+
+    /// Physical pixel rect used to match pointer events.
+    r: Rect.Physical,
+
+    /// true means match all focus-based events routed to the subwindow with
+    /// id.  This is how subwindows catch things like tab if no widget in that
+    /// subwindow has focus.
     cleanup: bool = false,
 };
 
 /// Should e be processed by a widget with the given id and screen rect?
 ///
 /// This is the core event matching logic and includes keyboard focus and mouse
-/// capture.  Call this on each event in events() to know whether to process.
+/// capture.  Call this on each event in `events` to know whether to process.
 ///
 /// If asking whether an existing widget would process an event (if you are
-/// wrapping a widget), that widget should have a matchEvent() which calls this
+/// wrapping a widget), that widget should have a `matchEvent` which calls this
 /// internally but might extend the logic, or use that function to track state
 /// (like whether a modifier key is being pressed).
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn eventMatch(e: *Event, opts: EventMatchOptions) bool {
     if (e.handled) return false;
 
@@ -2215,61 +2818,91 @@ pub fn eventMatch(e: *Event, opts: EventMatchOptions) bool {
         .key => {},
         .text => {},
         .mouse => |me| {
-            const capture_id = captureMouseId();
-            if (capture_id != null and me.action != .wheel_y) {
-                if (capture_id.? != opts.id) {
-                    // mouse is captured by a different widget
-                    return false;
-                }
-            } else {
-                if (me.floating_win != subwindowCurrentId()) {
-                    // floating window is above us
-                    return false;
+            const capture = captureMouseGet();
+            var other_capture = false;
+            if (capture) |cm| blk: {
+                if (me.action == .wheel_x or me.action == .wheel_y) {
+                    // wheel is not affected by mouse capture
+                    break :blk;
                 }
 
-                if (!opts.r.contains(me.p)) {
-                    // mouse not in our rect
-                    return false;
+                if (cm.id == opts.id) {
+                    // we have capture, we get all mouse events
+                    return true;
+                } else {
+                    // someone else has capture
+                    other_capture = true;
+                }
+            }
+
+            if (me.floating_win != subwindowCurrentId()) {
+                // floating window is above us
+                return false;
+            }
+
+            if (!opts.r.contains(me.p)) {
+                // mouse not in our rect
+                return false;
+            }
+
+            if (!clipGet().contains(me.p)) {
+                // mouse not in clip region
+
+                // prevents widgets that are scrolled off a
+                // scroll area from processing events
+                return false;
+            }
+
+            if (other_capture) {
+                // someone else has capture, but otherwise we would have gotten
+                // this mouse event
+                if (me.action == .position and capture.?.subwindow_id == subwindowCurrentId() and !capture.?.rect.intersect(opts.r).empty()) {
+                    // we might be trying to highlight a background around the widget with capture:
+                    // * we are in the same subwindow
+                    // * our rect overlaps with the capture rect
+                    return true;
                 }
 
-                if (!clipGet().contains(me.p)) {
-                    // mouse not in clip region
-
-                    // prevents widgets that are scrolled off a
-                    // scroll area from processing events
-                    return false;
-                }
+                return false;
             }
         },
 
         .close_popup => unreachable,
         .scroll_drag => unreachable,
         .scroll_to => unreachable,
-        .scroll_propogate => unreachable,
+        .scroll_propagate => unreachable,
     }
 
     return true;
 }
 
-/// Animation state - see animation() and animationGet().
+/// Animation state - see `animation` and `animationGet`.
 ///
-/// start_time and end_time are relative to the current frame time.  At the
+/// start_time and `end_time` are relative to the current frame time.  At the
 /// start of each frame both are reduced by the micros since the last frame.
 ///
-/// An animation will be active thru a frame where its end_time is <= 0, and be
-/// deleted at the beginning of the next frame.  See Spinner for an example of
-/// how to have a seemless continuous animation.
+/// An animation will be active thru a frame where its `end_time` is <= 0, and be
+/// deleted at the beginning of the next frame.  See `spinner` for an example of
+/// how to have a seamless continuous animation.
 pub const Animation = struct {
     used: bool = true,
+    easing: *const easing.EasingFn = easing.linear,
     start_val: f32 = 0,
     end_val: f32 = 1,
     start_time: i32 = 0,
     end_time: i32,
 
-    pub fn lerp(a: *const Animation) f32 {
-        var frac = @as(f32, @floatFromInt(-a.start_time)) / @as(f32, @floatFromInt(a.end_time - a.start_time));
-        frac = @max(0, @min(1, frac));
-        return (a.start_val * (1.0 - frac)) + (a.end_val * frac);
+    /// Get the interpolated value between `start_val` and `end_val`
+    ///
+    /// For some easing functions, this value can extend above or bellow
+    /// `start_val` and `end_val`. If this is an issue, you can choose
+    /// a different easing function or use `std.math.clamp`
+    pub fn value(a: *const Animation) f32 {
+        if (a.start_time >= 0) return a.start_val;
+        if (a.done()) return a.end_val;
+        const frac = @as(f32, @floatFromInt(-a.start_time)) / @as(f32, @floatFromInt(a.end_time - a.start_time));
+        const t = a.easing(std.math.clamp(frac, 0, 1));
+        return std.math.lerp(a.start_val, a.end_val, t);
     }
 
     // return true on the last frame for this animation
@@ -2282,10 +2915,10 @@ pub const Animation = struct {
     }
 };
 
-/// Add animation a to key associated with id.  See Animation.
+/// Add animation a to key associated with id.  See `Animation`.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn animation(id: u32, key: []const u8, a: Animation) void {
+/// Only valid between `Window.begin` and `Window.end`.
+pub fn animation(id: WidgetId, key: []const u8, a: Animation) void {
     var cw = currentWindow();
     const h = hashIdKey(id, key);
     cw.animations.put(h, a) catch |err| switch (err) {
@@ -2295,10 +2928,10 @@ pub fn animation(id: u32, key: []const u8, a: Animation) void {
     };
 }
 
-/// Retrieve an animation previously added with animation().  See Animation.
+/// Retrieve an animation previously added with `animation`.  See `Animation`.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn animationGet(id: u32, key: []const u8) ?Animation {
+/// Only valid between `Window.begin` and `Window.end`.
+pub fn animationGet(id: WidgetId, key: []const u8) ?Animation {
     var cw = currentWindow();
     const h = hashIdKey(id, key);
     const val = cw.animations.getPtr(h);
@@ -2310,20 +2943,20 @@ pub fn animationGet(id: u32, key: []const u8) ?Animation {
     return null;
 }
 
-/// Add a timer for id that will be timerDone() on the first frame after micros
+/// Add a timer for id that will be `timerDone` on the first frame after micros
 /// has passed.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn timer(id: u32, micros: i32) !void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn timer(id: WidgetId, micros: i32) !void {
     try currentWindow().timer(id, micros);
 }
 
 /// Return the number of micros left on the timer for id if there is one.  If
-/// timerDone(), this value will be <= 0 and represents how many micros this
+/// `timerDone`, this value will be <= 0 and represents how many micros this
 /// frame is past the timer expiration.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn timerGet(id: u32) ?i32 {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn timerGet(id: WidgetId) ?i32 {
     if (animationGet(id, "_timer")) |a| {
         return a.end_time;
     } else {
@@ -2333,8 +2966,8 @@ pub fn timerGet(id: u32) ?i32 {
 
 /// Return true on the first frame after a timer has expired.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn timerDone(id: u32) bool {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn timerDone(id: WidgetId) bool {
     if (timerGet(id)) |end_time| {
         if (end_time <= 0) {
             return true;
@@ -2344,31 +2977,31 @@ pub fn timerDone(id: u32) bool {
     return false;
 }
 
-/// Return true if timerDone() or if there is no timer.  Useful for periodic
-/// events (see Clock example).
+/// Return true if `timerDone` or if there is no timer.  Useful for periodic
+/// events (see Clock example in `Examples.animations`).
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn timerDoneOrNone(id: u32) bool {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn timerDoneOrNone(id: WidgetId) bool {
     return timerDone(id) or (timerGet(id) == null);
 }
 
-const TabIndex = struct {
-    windowId: u32,
-    widgetId: u32,
+pub const TabIndex = struct {
+    windowId: WidgetId,
+    widgetId: WidgetId,
     tabIndex: u16,
 };
 
-/// Set the tab order for this widget.  Tab_index values are visited starting
+/// Set the tab order for this widget.  `tab_index` values are visited starting
 /// with 1 and going up.
 ///
-/// A zero tab_index means this function does nothing and the widget is not
+/// A zero `tab_index` means this function does nothing and the widget is not
 /// added to the tab order.
 ///
-/// A null tab_index means it will be visited after all normal values.  All
-/// null widgets are visited in order of calling tabIndexSet.
+/// A null `tab_index` means it will be visited after all normal values.  All
+/// null widgets are visited in order of calling `tabIndexSet`.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn tabIndexSet(widget_id: u32, tab_index: ?u16) !void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn tabIndexSet(widget_id: WidgetId, tab_index: ?u16) !void {
     if (tab_index != null and tab_index.? == 0)
         return;
 
@@ -2379,10 +3012,10 @@ pub fn tabIndexSet(widget_id: u32, tab_index: ?u16) !void {
 
 /// Move focus to the next widget in tab index order.  Uses the tab index values from last frame.
 ///
-/// If you are calling this due to processing an event, you can pass Event.num
+/// If you are calling this due to processing an event, you can pass `Event`'s num
 /// and any further events will have their focus adjusted.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn tabIndexNext(event_num: ?u16) void {
     const cw = currentWindow();
     const widgetId = focusedWidgetId();
@@ -2399,7 +3032,7 @@ pub fn tabIndexNext(event_num: ?u16) void {
     // find the first widget with a tabindex greater than oldtab
     // or the first widget with lowest tabindex if oldtab is null
     var newtab: u16 = math.maxInt(u16);
-    var newId: ?u32 = null;
+    var newId: ?WidgetId = null;
     var foundFocus = false;
 
     for (cw.tab_index_prev.items) |ti| {
@@ -2425,10 +3058,10 @@ pub fn tabIndexNext(event_num: ?u16) void {
 
 /// Move focus to the previous widget in tab index order.  Uses the tab index values from last frame.
 ///
-/// If you are calling this due to processing an event, you can pass Event.num
+/// If you are calling this due to processing an event, you can pass `Event`'s num
 /// and any further events will have their focus adjusted.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn tabIndexPrev(event_num: ?u16) void {
     const cw = currentWindow();
     const widgetId = focusedWidgetId();
@@ -2445,7 +3078,7 @@ pub fn tabIndexPrev(event_num: ?u16) void {
     // find the last widget with a tabindex less than oldtab
     // or the last widget with highest tabindex if oldtab is null
     var newtab: u16 = 1;
-    var newId: ?u32 = null;
+    var newId: ?WidgetId = null;
     var foundFocus = false;
 
     for (cw.tab_index_prev.items) |ti| {
@@ -2472,18 +3105,17 @@ pub fn tabIndexPrev(event_num: ?u16) void {
 
 /// Wigets that accept text input should call this on frames they have focus.
 ///
-/// r is in pixels.
-///
 /// It communicates:
 /// * text input should happen (maybe shows an on screen keyboard)
 /// * rect on screen (position possible IME window)
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn wantTextInput(r: Rect) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn wantTextInput(r: Rect.Natural) void {
     const cw = currentWindow();
-    cw.text_input_rect = r.scale(1 / cw.natural_scale);
+    cw.text_input_rect = r;
 }
 
+<<<<<<< HEAD
 /// Maps to an OS window, and saves all the state needed between frames.
 /// Usually this is created at app startup and deinit() called on app shutdown.
 ///
@@ -4156,8 +4788,11 @@ pub const Window = struct {
 pub const popup = @compileError("popup renamed to floatingMenu");
 
 pub fn floatingMenu(src: std.builtin.SourceLocation, initialRect: Rect, opts: Options) !*FloatingMenuWidget {
+=======
+pub fn floatingMenu(src: std.builtin.SourceLocation, init_opts: FloatingMenuWidget.InitOptions, opts: Options) !*FloatingMenuWidget {
+>>>>>>> 2fd3c7fcd700ea9c0fd96d217d6ff878ba0d02d7
     var ret = try currentWindow().arena().create(FloatingMenuWidget);
-    ret.* = FloatingMenuWidget.init(src, initialRect, opts);
+    ret.* = FloatingMenuWidget.init(src, init_opts, opts);
     try ret.install();
     return ret;
 }
@@ -4172,7 +4807,7 @@ pub fn floatingWindow(src: std.builtin.SourceLocation, floating_opts: FloatingWi
 }
 
 pub fn windowHeader(str: []const u8, right_str: []const u8, openflag: ?*bool) !void {
-    var over = try dvui.overlay(@src(), .{ .expand = .horizontal });
+    var over = try dvui.overlay(@src(), .{ .expand = .horizontal, .name = "WindowHeader" });
 
     try dvui.labelNoFmt(@src(), str, .{ .gravity_x = 0.5, .gravity_y = 0.5, .expand = .horizontal, .font_style = .heading, .padding = .{ .x = 6, .y = 6, .w = 6, .h = 4 } });
 
@@ -4196,7 +4831,7 @@ pub fn windowHeader(str: []const u8, right_str: []const u8, openflag: ?*bool) !v
         } else if (e.evt == .mouse and e.evt.mouse.action == .focus) {
             // our window will already be focused, but this prevents the window
             // from clearing the focused widget
-            e.handled = true;
+            e.handle(@src(), over.data());
         }
     }
 
@@ -4205,33 +4840,33 @@ pub fn windowHeader(str: []const u8, right_str: []const u8, openflag: ?*bool) !v
     try dvui.separator(@src(), .{ .expand = .horizontal });
 }
 
-pub const DialogDisplayFn = *const fn (u32) anyerror!void;
-pub const DialogCallAfterFn = *const fn (u32, enums.DialogResponse) anyerror!void;
+pub const DialogDisplayFn = *const fn (WidgetId) anyerror!void;
+pub const DialogCallAfterFn = *const fn (WidgetId, enums.DialogResponse) anyerror!void;
 
 pub const Dialog = struct {
-    id: u32,
+    id: WidgetId,
     display: DialogDisplayFn,
 };
 
 pub const IdMutex = struct {
-    id: u32,
+    id: WidgetId,
     mutex: *std.Thread.Mutex,
 };
 
-/// Add a dialog to be displayed on the GUI thread during Window.end().
+/// Add a dialog to be displayed on the GUI thread during `Window.end`.
 ///
-/// Returns an id and locked mutex that must be unlocked by the caller. Caller
-/// does any Window.dataSet() calls before unlocking the mutex to ensure that
+/// Returns an id and locked mutex that **must** be unlocked by the caller. Caller
+/// does any `Window.dataSet` calls before unlocking the mutex to ensure that
 /// data is available before the dialog is displayed.
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
-/// pass a pointer to the Window you want to add the dialog to.
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you
+/// **must** pass a pointer to the Window you want to add the dialog to.
 pub fn dialogAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize, display: DialogDisplayFn) !IdMutex {
     if (win) |w| {
         // we are being called from non gui thread
-        const id = hashSrc(src, id_extra);
+        const id = hashSrc(null, src, id_extra);
         const mutex = try w.dialogAdd(id, display);
         refresh(win, @src(), id); // will wake up gui thread
         return .{ .id = id, .mutex = mutex };
@@ -4249,7 +4884,7 @@ pub fn dialogAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize
 }
 
 /// Only called from gui thread.
-pub fn dialogRemove(id: u32) void {
+pub fn dialogRemove(id: WidgetId) void {
     const cw = currentWindow();
     cw.dialogRemove(id);
     refresh(null, @src(), id);
@@ -4263,16 +4898,19 @@ pub const DialogOptions = struct {
     message: []const u8,
     ok_label: []const u8 = "Ok",
     cancel_label: ?[]const u8 = null,
-    max_size: ?Size = null,
+    max_size: ?Options.MaxSize = null,
     displayFn: DialogDisplayFn = dialogDisplay,
     callafterFn: ?DialogCallAfterFn = null,
 };
 
-/// Add a dialog to be displayed on the GUI thread during Window.end().
+/// Add a dialog to be displayed on the GUI thread during `Window.end`.
+///
+/// user_struct can be anytype, each field will be stored using
+/// `dataSet`/`dataSetSlice` for use in `opts.displayFn`
 ///
 /// Can be called from any thread, but if calling from a non-GUI thread or
-/// outside window.begin()/end(), you must set opts.window.
-pub fn dialog(src: std.builtin.SourceLocation, opts: DialogOptions) !void {
+/// outside `Window.begin`/`Window.end` you must set opts.window.
+pub fn dialog(src: std.builtin.SourceLocation, user_struct: anytype, opts: DialogOptions) !void {
     const id_mutex = try dialogAdd(opts.window, src, opts.id_extra, opts.displayFn);
     const id = id_mutex.id;
     dataSet(opts.window, id, "_modal", opts.modal);
@@ -4289,10 +4927,21 @@ pub fn dialog(src: std.builtin.SourceLocation, opts: DialogOptions) !void {
     if (opts.callafterFn) |ca| {
         dataSet(opts.window, id, "_callafter", ca);
     }
+
+    // add all fields of user_struct
+    inline for (@typeInfo(@TypeOf(user_struct)).@"struct".fields) |f| {
+        const ft = @typeInfo(f.type);
+        if (ft == .pointer and (ft.pointer.size == .slice or (ft.pointer.size == .one and @typeInfo(ft.pointer.child) == .array))) {
+            dataSetSlice(opts.window, id, f.name, @field(user_struct, f.name));
+        } else {
+            dataSet(opts.window, id, f.name, @field(user_struct, f.name));
+        }
+    }
+
     id_mutex.mutex.unlock();
 }
 
-pub fn dialogDisplay(id: u32) !void {
+pub fn dialogDisplay(id: WidgetId) !void {
     const modal = dvui.dataGet(null, id, "_modal", bool) orelse {
         log.err("dialogDisplay lost data for dialog {x}\n", .{id});
         dvui.dialogRemove(id);
@@ -4317,15 +4966,15 @@ pub fn dialogDisplay(id: u32) !void {
         return;
     };
 
-    const center_on = dvui.dataGet(null, id, "_center_on", Rect) orelse currentWindow().subwindow_currentRect;
+    const center_on = dvui.dataGet(null, id, "_center_on", Rect.Natural) orelse currentWindow().subwindow_currentRect;
 
     const cancel_label = dvui.dataGetSlice(null, id, "_cancel_label", []u8);
 
     const callafter = dvui.dataGet(null, id, "_callafter", DialogCallAfterFn);
 
-    const maxSize = dvui.dataGet(null, id, "_max_size", Size);
+    const maxSize = dvui.dataGet(null, id, "_max_size", Options.MaxSize);
 
-    var win = try floatingWindow(@src(), .{ .modal = modal, .center_on = center_on, .window_avoid = .nudge }, .{ .id_extra = id, .max_size_content = maxSize });
+    var win = try floatingWindow(@src(), .{ .modal = modal, .center_on = center_on, .window_avoid = .nudge }, .{ .id_extra = id.asUsize(), .max_size_content = maxSize });
     defer win.deinit();
 
     var header_openflag = true;
@@ -4370,6 +5019,98 @@ pub fn dialogDisplay(id: u32) !void {
     scroll.deinit();
 }
 
+pub const DialogWasmFileOptions = struct {
+    /// Filter files shown by setting the [accept](https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/accept) attribute
+    ///
+    /// Example: ".pdf, image/*"
+    accept: ?[]const u8 = null,
+};
+
+const WasmFile = struct {
+    id: WidgetId,
+    index: usize,
+    /// The size of the data in bytes
+    size: usize,
+    /// The filename of the uploaded file. Does not include the path of the file
+    name: [:0]const u8,
+
+    pub fn readData(self: *WasmFile, allocator: std.mem.Allocator) ![]u8 {
+        std.debug.assert(wasm); // WasmFile shouldn't be used outside wasm builds
+        const data = try allocator.alloc(u8, self.size);
+        dvui.backend.readFileData(self.id, self.index, data.ptr);
+        return data;
+    }
+};
+
+/// Opens a file picker WITHOUT blocking. The file can be accessed by calling `wasmFileUploaded` with the same id
+///
+/// This function does nothing in non-wasm builds
+pub fn dialogWasmFileOpen(id: WidgetId, opts: DialogWasmFileOptions) void {
+    if (!wasm) return;
+    dvui.backend.openFilePicker(id, opts.accept, false);
+}
+
+/// Will only return a non-null value for a single frame
+///
+/// This function does nothing in non-wasm builds
+pub fn wasmFileUploaded(id: WidgetId) ?WasmFile {
+    if (!wasm) return null;
+    const num_files = dvui.backend.getNumberOfFilesAvailable(id);
+    if (num_files == 0) return null;
+    if (num_files > 1) {
+        log.err("Received more than one file for id {d}. Did you mean to call wasmFileUploadedMultiple?", .{id});
+    }
+    const name = dvui.backend.getFileName(id, 0);
+    const size = dvui.backend.getFileSize(id, 0);
+    if (name == null or size == null) {
+        log.err("Could not get file metadata. Got size: {?d} and name: {?s}", .{ size, name });
+        return null;
+    }
+    return WasmFile{
+        .id = id,
+        .index = 0,
+        .size = size.?,
+        .name = name.?,
+    };
+}
+
+/// Opens a file picker WITHOUT blocking. The files can be accessed by calling `wasmFileUploadedMultiple` with the same id
+///
+/// This function does nothing in non-wasm builds
+pub fn dialogWasmFileOpenMultiple(id: WidgetId, opts: DialogWasmFileOptions) void {
+    if (!wasm) return;
+    dvui.backend.openFilePicker(id, opts.accept, true);
+}
+
+/// Will only return a non-null value for a single frame
+///
+/// This function does nothing in non-wasm builds
+pub fn wasmFileUploadedMultiple(id: WidgetId) ?[]WasmFile {
+    if (!wasm) return null;
+    const num_files = dvui.backend.getNumberOfFilesAvailable(id);
+    if (num_files == 0) return null;
+
+    const files = dvui.currentWindow().arena().alloc(WasmFile, num_files) catch |err| {
+        log.err("File upload skipped, failed to allocate space for file handles: {!}", .{err});
+        return null;
+    };
+    for (0.., files) |i, *file| {
+        const name = dvui.backend.getFileName(id, i);
+        const size = dvui.backend.getFileSize(id, i);
+        if (name == null or size == null) {
+            log.err("Could not get file metadata for id {d} file number {d}. Got size: {?d} and name: {?s}", .{ id, i, size, name });
+            return null;
+        }
+        file.* = WasmFile{
+            .id = id,
+            .index = i,
+            .size = size.?,
+            .name = name.?,
+        };
+    }
+    return files;
+}
+
 pub const DialogNativeFileOptions = struct {
     /// Title of the dialog window
     title: ?[]const u8 = null,
@@ -4385,12 +5126,12 @@ pub const DialogNativeFileOptions = struct {
 };
 
 /// Block while showing a native file open dialog.  Return the selected file
-/// path or null if cancelled.  See dialogNativeFileOpenMultiple()
+/// path or null if cancelled.  See `dialogNativeFileOpenMultiple`
 ///
 /// Not thread safe, but can be used from any thread.
 ///
 /// Returned string is created by passed allocator.  Not implemented for web (returns null).
-pub fn dialogNativeFileOpen(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[]const u8 {
+pub fn dialogNativeFileOpen(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[:0]const u8 {
     if (wasm) {
         return null;
     }
@@ -4404,7 +5145,7 @@ pub fn dialogNativeFileOpen(alloc: std.mem.Allocator, opts: DialogNativeFileOpti
 /// Not thread safe, but can be used from any thread.
 ///
 /// Returned slice and strings are created by passed allocator.  Not implemented for web (returns null).
-pub fn dialogNativeFileOpenMultiple(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[][]const u8 {
+pub fn dialogNativeFileOpenMultiple(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[][:0]const u8 {
     if (wasm) {
         return null;
     }
@@ -4418,7 +5159,7 @@ pub fn dialogNativeFileOpenMultiple(alloc: std.mem.Allocator, opts: DialogNative
 /// Not thread safe, but can be used from any thread.
 ///
 /// Returned string is created by passed allocator.  Not implemented for web (returns null).
-pub fn dialogNativeFileSave(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[]const u8 {
+pub fn dialogNativeFileSave(alloc: std.mem.Allocator, opts: DialogNativeFileOptions) !?[:0]const u8 {
     if (wasm) {
         return null;
     }
@@ -4426,7 +5167,7 @@ pub fn dialogNativeFileSave(alloc: std.mem.Allocator, opts: DialogNativeFileOpti
     return dialogNativeFileInternal(false, false, alloc, opts);
 }
 
-fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc: std.mem.Allocator, opts: DialogNativeFileOptions) if (multiple) error{OutOfMemory}!?[][]const u8 else error{OutOfMemory}!?[]const u8 {
+fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc: std.mem.Allocator, opts: DialogNativeFileOptions) if (multiple) error{OutOfMemory}!?[][:0]const u8 else error{OutOfMemory}!?[:0]const u8 {
     var backing: [500]u8 = undefined;
     var buf: []u8 = &backing;
 
@@ -4477,8 +5218,8 @@ fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc:
         }
     }
 
-    var result: if (multiple) ?[][]const u8 else ?[]const u8 = null;
-    const tfd_ret = blk: {
+    var result: if (multiple) ?[][:0]const u8 else ?[:0]const u8 = null;
+    const tfd_ret: [*c]const u8 = blk: {
         if (open) {
             break :blk dvui.c.tinyfd_openFileDialog(title, path, @intCast(filter_count), filters, filter_desc, if (multiple) 1 else 0);
         } else {
@@ -4488,17 +5229,17 @@ fn dialogNativeFileInternal(comptime open: bool, comptime multiple: bool, alloc:
 
     if (tfd_ret) |r| {
         if (multiple) {
-            const r_slice = std.mem.sliceTo(r, 0);
+            const r_slice = std.mem.span(r);
             const num = std.mem.count(u8, r_slice, "|") + 1;
-            result = try alloc.alloc([]const u8, num);
+            result = try alloc.alloc([:0]const u8, num);
             var it = std.mem.splitScalar(u8, r_slice, '|');
             var i: usize = 0;
             while (it.next()) |f| {
-                result.?[i] = try alloc.dupe(u8, f);
+                result.?[i] = try alloc.dupeZ(u8, f);
                 i += 1;
             }
         } else {
-            result = try alloc.dupe(u8, std.mem.sliceTo(r, 0));
+            result = try alloc.dupeZ(u8, std.mem.span(r));
         }
     }
 
@@ -4561,27 +5302,27 @@ pub fn dialogNativeFolderSelect(alloc: std.mem.Allocator, opts: DialogNativeFold
 }
 
 pub const Toast = struct {
-    id: u32,
-    subwindow_id: ?u32,
+    id: WidgetId,
+    subwindow_id: ?WidgetId,
     display: DialogDisplayFn,
 };
 
 /// Add a toast.  If subwindow_id is null, the toast will be shown during
-/// Window.end().  If subwindow_id is not null, separate code must call
-/// toastsFor() with that subwindow_id to retrieve this toast and display it.
+/// `Window.end`.  If subwindow_id is not null, separate code must call
+/// `toastsFor` with that subwindow_id to retrieve this toast and display it.
 ///
 /// Returns an id and locked mutex that must be unlocked by the caller. Caller
-/// does any dataSet() calls before unlocking the mutex to ensure that data is
+/// does any `dataSet` calls before unlocking the mutex to ensure that data is
 /// available before the toast is displayed.
 ///
 /// Can be called from any thread.
 ///
-/// If called from non-GUI thread or outside window.begin()/end(), you must
+/// If called from non-GUI thread or outside `Window.begin`/`Window.end`, you must
 /// pass a pointer to the Window you want to add the toast to.
-pub fn toastAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize, subwindow_id: ?u32, display: DialogDisplayFn, timeout: ?i32) !IdMutex {
+pub fn toastAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize, subwindow_id: ?WidgetId, display: DialogDisplayFn, timeout: ?i32) !IdMutex {
     if (win) |w| {
         // we are being called from non gui thread
-        const id = hashSrc(src, id_extra);
+        const id = hashSrc(null, src, id_extra);
         const mutex = try w.toastAdd(id, subwindow_id, display, timeout);
         refresh(win, @src(), id);
         return .{ .id = id, .mutex = mutex };
@@ -4599,13 +5340,13 @@ pub fn toastAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize,
 }
 
 /// Only called from gui thread.
-pub fn toastRemove(id: u32) void {
+pub fn toastRemove(id: WidgetId) void {
     const cw = currentWindow();
     cw.toastRemove(id);
     refresh(null, @src(), id);
 }
 
-pub fn toastsFor(subwindow_id: ?u32) ?ToastIterator {
+pub fn toastsFor(subwindow_id: ?WidgetId) ?ToastIterator {
     const cw = dvui.currentWindow();
     cw.dialog_mutex.lock();
     defer cw.dialog_mutex.unlock();
@@ -4622,11 +5363,11 @@ pub fn toastsFor(subwindow_id: ?u32) ?ToastIterator {
 pub const ToastIterator = struct {
     const Self = @This();
     cw: *Window,
-    subwindow_id: ?u32,
+    subwindow_id: ?WidgetId,
     i: usize,
-    last_id: ?u32 = null,
+    last_id: ?WidgetId = null,
 
-    pub fn init(win: *Window, subwindow_id: ?u32, i: usize) Self {
+    pub fn init(win: *Window, subwindow_id: ?WidgetId, i: usize) Self {
         return Self{ .cw = win, .subwindow_id = subwindow_id, .i = i };
     }
 
@@ -4659,18 +5400,18 @@ pub const ToastIterator = struct {
 pub const ToastOptions = struct {
     id_extra: usize = 0,
     window: ?*Window = null,
-    subwindow_id: ?u32 = null,
+    subwindow_id: ?WidgetId = null,
     timeout: ?i32 = 5_000_000,
     message: []const u8,
     displayFn: DialogDisplayFn = toastDisplay,
 };
 
-/// Add a toast.  If opts.subwindow_id is null, the toast will be shown during
-/// Window.end().  If opts.subwindow_id is not null, separate code must call
-/// toastsFor() with that subwindow_id to retrieve this toast and display it.
+/// Add a toast.  If `opts.subwindow_id` is null, the toast will be shown during
+/// `Window.end`.  If `opts.subwindow_id` is not null, separate code must call
+/// `toastsFor` with that subwindow_id to retrieve this toast and display it.
 ///
 /// Can be called from any thread, but if called from a non-GUI thread or
-/// outside window.begin()/end(), you must set opts.window.
+/// outside `Window.begin`/`Window.end`, you must set `opts.window`.
 pub fn toast(src: std.builtin.SourceLocation, opts: ToastOptions) !void {
     const id_mutex = try dvui.toastAdd(opts.window, src, opts.id_extra, opts.subwindow_id, opts.displayFn, opts.timeout);
     const id = id_mutex.id;
@@ -4678,15 +5419,15 @@ pub fn toast(src: std.builtin.SourceLocation, opts: ToastOptions) !void {
     id_mutex.mutex.unlock();
 }
 
-pub fn toastDisplay(id: u32) !void {
+pub fn toastDisplay(id: WidgetId) !void {
     const message = dvui.dataGetSlice(null, id, "_message", []u8) orelse {
         log.err("toastDisplay lost data for toast {x}\n", .{id});
         return;
     };
 
-    var animator = try dvui.animate(@src(), .alpha, 500_000, .{ .id_extra = id });
+    var animator = try dvui.animate(@src(), .{ .kind = .alpha, .duration = 500_000 }, .{ .id_extra = id.asUsize() });
     defer animator.deinit();
-    try dvui.labelNoFmt(@src(), message, .{ .background = true, .corner_radius = dvui.Rect.all(1000), .padding = Rect.all(8) });
+    try dvui.labelNoFmt(@src(), message, .{ .background = true, .corner_radius = dvui.Rect.all(1000), .padding = .{ .x = 16, .y = 8, .w = 16, .h = 8 } });
 
     if (dvui.timerDone(id)) {
         animator.startEnd();
@@ -4697,209 +5438,40 @@ pub fn toastDisplay(id: u32) !void {
     }
 }
 
-pub fn animate(src: std.builtin.SourceLocation, kind: AnimateWidget.Kind, duration_micros: i32, opts: Options) !*AnimateWidget {
+/// Standard way of showing toasts.
+pub fn toastsShow(floating_window_data: ?*WidgetData) !void {
+    const id: ?WidgetId, const rect: Rect = blk: {
+        if (floating_window_data) |fwd| {
+            break :blk .{ fwd.id, fwd.rect };
+        } else {
+            break :blk .{ null, .cast(windowRect()) };
+        }
+    };
+    var ti = dvui.toastsFor(id);
+    if (ti) |*it| {
+        var toast_win = dvui.FloatingWindowWidget.init(@src(), .{ .stay_above_parent_window = id != null, .process_events_in_deinit = false }, .{ .background = false, .border = .{} });
+        defer toast_win.deinit();
+
+        toast_win.data().rect = dvui.placeIn(rect, toast_win.data().rect.size(), .none, .{ .x = 0.5, .y = 0.7 });
+        toast_win.autoSize();
+        try toast_win.install();
+        try toast_win.drawBackground();
+
+        var vbox = try dvui.box(@src(), .vertical, .{});
+        defer vbox.deinit();
+
+        while (it.next()) |t| {
+            try t.display(t.id);
+        }
+    }
+}
+
+pub fn animate(src: std.builtin.SourceLocation, init_opts: AnimateWidget.InitOptions, opts: Options) !*AnimateWidget {
     var ret = try currentWindow().arena().create(AnimateWidget);
-    ret.* = AnimateWidget.init(src, kind, duration_micros, opts);
+    ret.* = AnimateWidget.init(src, init_opts, opts);
     try ret.install();
     return ret;
 }
-
-pub const DropdownWidget = struct {
-    pub var defaults: Options = .{
-        .color_fill = .{ .name = .fill_control },
-        .margin = Rect.all(4),
-        .corner_radius = Rect.all(5),
-        .padding = Rect.all(6),
-        .background = true,
-        .name = "Dropdown",
-    };
-
-    pub const InitOptions = struct {
-        label: ?[]const u8 = null,
-        selected_index: ?usize = null,
-    };
-
-    options: Options = undefined,
-    init_options: InitOptions = undefined,
-    menu: MenuWidget = undefined,
-    menuItem: MenuItemWidget = undefined,
-    drop: ?FloatingMenuWidget = null,
-    drop_first_frame: bool = false,
-    drop_mi: ?MenuItemWidget = null,
-    drop_mi_index: usize = 0,
-    drop_height: f32 = 0,
-    drop_adjust: f32 = undefined,
-
-    pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Options) DropdownWidget {
-        var self = DropdownWidget{};
-        self.options = defaults.override(opts);
-        self.init_options = init_opts;
-        self.menu = MenuWidget.init(src, .{ .dir = .horizontal }, self.options.wrapOuter());
-        self.drop_adjust = dvui.dataGet(null, self.menu.wd.id, "_drop_adjust", f32) orelse 0;
-        return self;
-    }
-
-    pub fn install(self: *DropdownWidget) !void {
-        try self.menu.install();
-
-        self.menuItem = MenuItemWidget.init(@src(), .{ .submenu = true }, self.options.wrapInner());
-        try self.menuItem.install();
-        self.menuItem.processEvents();
-        try self.menuItem.drawBackground(.{ .focus_as_outline = true });
-
-        if (self.init_options.label) |ll| {
-            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-
-            var lw = try LabelWidget.initNoFmt(@src(), ll, self.options.strip().override(.{ .gravity_y = 0.5 }));
-            try lw.install();
-            try lw.draw();
-            lw.deinit();
-            _ = try spacer(@src(), .{ .w = 6 }, .{});
-            try icon(@src(), "dropdown_triangle", entypo.chevron_small_down, self.options.strip().override(.{ .gravity_y = 0.5, .gravity_x = 1.0 }));
-
-            hbox.deinit();
-        }
-    }
-
-    pub fn close(self: *DropdownWidget) void {
-        self.menu.close();
-    }
-
-    pub fn dropped(self: *DropdownWidget) !bool {
-        if (self.drop != null) {
-            // protect against calling this multiple times
-            return true;
-        }
-
-        if (self.menuItem.activeRect()) |r| {
-            self.drop = FloatingMenuWidget.init(@src(), r, .{ .min_size_content = r.size() });
-            var drop = &self.drop.?;
-            self.drop_first_frame = firstFrame(drop.wd.id);
-
-            const s = drop.scale_val;
-
-            // move drop up to align first item
-            drop.initialRect.x -= drop.options.borderGet().x * s;
-            drop.initialRect.x -= drop.options.paddingGet().x * s;
-            drop.initialRect.y -= drop.options.borderGet().y * s;
-            drop.initialRect.y -= drop.options.paddingGet().y * s;
-
-            // move drop up so selected entry is aligned
-            drop.initialRect.y -= self.drop_adjust * s;
-
-            try drop.install();
-
-            // without this, if you trigger the dropdown with the keyboard and then
-            // move the mouse, the entries are highlighted but not focused
-            drop.menu.submenus_activated = true;
-
-            // only want a mouse-up to choose something if the mouse has moved in the dropup
-            var eat_mouse_up = dataGet(null, drop.wd.id, "_eat_mouse_up", bool) orelse true;
-            var drag_scroll = dataGet(null, drop.wd.id, "_drag_scroll", bool) orelse false;
-
-            const drop_rs = drop.data().rectScale();
-            const scroll_rs = drop.scroll.data().contentRectScale();
-            const evts = events();
-            for (evts) |*e| {
-                if (drag_scroll and e.evt == .mouse and !e.evt.mouse.button.touch() and (e.evt.mouse.action == .motion or e.evt.mouse.action == .position)) {
-                    if (e.evt.mouse.p.x >= scroll_rs.r.x and e.evt.mouse.p.x <= scroll_rs.r.x + scroll_rs.r.w and (e.evt.mouse.p.y <= scroll_rs.r.y or e.evt.mouse.p.y >= scroll_rs.r.y + scroll_rs.r.h)) {
-                        if (e.evt.mouse.action == .motion) {
-                            var scrolldrag = Event{ .evt = .{ .scroll_drag = .{
-                                .mouse_pt = e.evt.mouse.p,
-                                .screen_rect = drop.menu.data().rectScale().r,
-                                .capture_id = drop.wd.id,
-                            } } };
-                            drop.scroll.scroll.processEvent(&scrolldrag, true);
-                        } else if (e.evt.mouse.action == .position) {
-                            dvui.currentWindow().inject_motion_event = true;
-                        }
-                    }
-                }
-
-                if (!eventMatch(e, .{ .id = drop.data().id, .r = drop_rs.r }))
-                    continue;
-
-                if (e.evt == .mouse) {
-                    if (e.evt.mouse.action == .release and e.evt.mouse.button.pointer()) {
-                        if (eat_mouse_up) {
-                            e.handled = true;
-                            eat_mouse_up = false;
-                            dataSet(null, drop.wd.id, "_eat_mouse_up", eat_mouse_up);
-                        }
-                    } else if (e.evt.mouse.action == .motion or (e.evt.mouse.action == .press and e.evt.mouse.button.pointer())) {
-                        if (eat_mouse_up) {
-                            eat_mouse_up = false;
-                            dataSet(null, drop.wd.id, "_eat_mouse_up", eat_mouse_up);
-                        }
-
-                        if (!drag_scroll) {
-                            drag_scroll = true;
-                            dataSet(null, drop.wd.id, "_drag_scroll", drag_scroll);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (self.drop != null) {
-            return true;
-        }
-
-        return false;
-    }
-
-    pub fn addChoiceLabel(self: *DropdownWidget, label_text: []const u8) !bool {
-        var mi = try self.addChoice();
-        defer mi.deinit();
-
-        var opts = self.options.strip();
-        if (mi.show_active) {
-            opts = opts.override(dvui.themeGet().style_accent);
-        }
-
-        try labelNoFmt(@src(), label_text, opts);
-
-        if (mi.activeRect()) |_| {
-            self.close();
-            return true;
-        }
-
-        return false;
-    }
-
-    pub fn addChoice(self: *DropdownWidget) !*MenuItemWidget {
-        // record how far down in our parent we would be
-        if (self.drop_mi) |*mi| {
-            self.drop_height += mi.data().min_size.h;
-        }
-
-        self.drop_mi = MenuItemWidget.init(@src(), .{}, .{ .id_extra = self.drop_mi_index, .expand = .horizontal });
-        try self.drop_mi.?.install();
-        self.drop_mi.?.processEvents();
-        try self.drop_mi.?.drawBackground(.{});
-
-        if (self.drop_first_frame) {
-            if (self.init_options.selected_index) |si| {
-                if (si == self.drop_mi_index) {
-                    focusWidget(self.drop_mi.?.wd.id, null, null);
-                    dvui.dataSet(null, self.menu.wd.id, "_drop_adjust", self.drop_height);
-                }
-            }
-        }
-        self.drop_mi_index += 1;
-
-        return &self.drop_mi.?;
-    }
-
-    pub fn deinit(self: *DropdownWidget) void {
-        if (self.drop != null) {
-            self.drop.?.deinit();
-            self.drop = null;
-        }
-        self.menuItem.deinit();
-        self.menu.deinit();
-    }
-};
 
 pub fn dropdown(src: std.builtin.SourceLocation, entries: []const []const u8, choice: *usize, opts: Options) !bool {
     var dd = dvui.DropdownWidget.init(src, .{ .selected_index = choice.*, .label = entries[choice.*] }, opts);
@@ -4919,163 +5491,139 @@ pub fn dropdown(src: std.builtin.SourceLocation, entries: []const []const u8, ch
     return ret;
 }
 
-pub const TabsWidget = struct {
-    pub var defaults: Options = .{
-        .background = false,
-        .corner_radius = Rect{},
-        .name = "Tabs",
-    };
+pub const SuggestionInitOptions = struct {
+    button: bool = false,
+    opened: bool = false,
+    open_on_text_change: bool = true,
+    open_on_focus: bool = true,
+};
 
-    pub const InitOptions = struct {
-        dir: enums.Direction = .horizontal,
-    };
+pub fn suggestion(te: *TextEntryWidget, init_opts: SuggestionInitOptions) !*SuggestionWidget {
+    var open_sug = init_opts.opened;
 
-    options: Options = undefined,
-    init_options: InitOptions = undefined,
-    scroll: ScrollAreaWidget = undefined,
-    box: BoxWidget = undefined,
-    tab_index: usize = 0,
-    tab_button: ButtonWidget = undefined,
-
-    pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Options) TabsWidget {
-        var self = TabsWidget{};
-        self.options = defaults.override(opts);
-        self.init_options = init_opts;
-        var scroll_opts: ScrollAreaWidget.InitOpts = .{};
-        switch (self.init_options.dir) {
-            .horizontal => scroll_opts = .{ .vertical = .none, .horizontal = .auto, .horizontal_bar = .hide },
-            .vertical => scroll_opts = .{ .vertical = .auto, .vertical_bar = .hide },
-        }
-        self.scroll = ScrollAreaWidget.init(src, scroll_opts, self.options.override(.{ .debug = true }));
-        return self;
-    }
-
-    pub fn install(self: *TabsWidget) !void {
-        try self.scroll.install();
-
-        const margin: Rect = switch (self.init_options.dir) {
-            .horizontal => .{ .y = 2 },
-            .vertical => .{ .x = 2 },
-        };
-        self.box = BoxWidget.init(@src(), self.init_options.dir, false, .{ .margin = margin });
-        try self.box.install();
-
-        var r = self.scroll.data().contentRectScale().r;
-        switch (self.init_options.dir) {
-            .horizontal => {
-                if (dvui.currentWindow().snap_to_pixels) {
-                    r.x += 0.5;
-                    r.w -= 1.0;
-                    r.y = @floor(r.y) - 0.5;
-                }
-                try dvui.pathAddPoint(r.bottomLeft());
-                try dvui.pathAddPoint(r.bottomRight());
-                try dvui.pathStroke(false, 1, .none, dvui.themeGet().color_border);
-            },
-            .vertical => {
-                if (dvui.currentWindow().snap_to_pixels) {
-                    r.y += 0.5;
-                    r.h -= 1.0;
-                    r.x = @floor(r.x) - 0.5;
-                }
-                try dvui.pathAddPoint(r.topRight());
-                try dvui.pathAddPoint(r.bottomRight());
-                try dvui.pathStroke(false, 1, .none, dvui.themeGet().color_border);
-            },
+    if (init_opts.button) {
+        if (try dvui.buttonIcon(@src(), "combobox_triangle", entypo.chevron_small_down, .{}, .{ .expand = .ratio, .margin = dvui.Rect.all(2), .gravity_x = 1.0, .tab_index = 0 })) {
+            open_sug = true;
+            dvui.focusWidget(te.data().id, null, null);
         }
     }
 
-    pub fn addTabLabel(self: *TabsWidget, selected: bool, text: []const u8) !bool {
-        var tab = try self.addTab(selected, .{});
-        defer tab.deinit();
+    const min_width = te.textLayout.data().backgroundRect().w;
 
-        var label_opts = tab.data().options.strip();
-        if (dvui.captured(tab.data().id)) {
-            label_opts.color_text = .{ .name = .text_press };
-        }
-
-        try dvui.labelNoFmt(@src(), text, label_opts);
-
-        return tab.clicked();
+    var sug = try currentWindow().arena().create(SuggestionWidget);
+    sug.* = dvui.SuggestionWidget.init(@src(), .{ .rs = te.data().borderRectScale(), .text_entry_id = te.data().id }, .{ .min_size_content = .{ .w = min_width }, .padding = .{}, .border = te.data().options.borderGet() });
+    try sug.install();
+    if (open_sug) {
+        sug.open();
     }
 
-    pub fn addTab(self: *TabsWidget, selected: bool, opts: Options) !*ButtonWidget {
-        var tab_defaults: Options = switch (self.init_options.dir) {
-            .horizontal => .{ .id_extra = self.tab_index, .background = true, .corner_radius = .{ .x = 5, .y = 5 }, .margin = .{ .x = 2, .w = 2 } },
-            .vertical => .{ .id_extra = self.tab_index, .background = true, .corner_radius = .{ .x = 5, .h = 5 }, .margin = .{ .y = 2, .h = 2 } },
-        };
-
-        self.tab_index += 1;
-
-        if (selected) {
-            tab_defaults.font_style = .heading;
-            tab_defaults.color_fill = .{ .name = .fill_window };
-            tab_defaults.border = switch (self.init_options.dir) {
-                .horizontal => .{ .x = 1, .y = 1, .w = 1 },
-                .vertical => .{ .x = 1, .y = 1, .h = 1 },
-            };
-        } else {
-            tab_defaults.color_fill = .{ .name = .fill_control };
-            switch (self.init_options.dir) {
-                .horizontal => tab_defaults.margin.?.h = 1,
-                .vertical => tab_defaults.margin.?.w = 1,
-            }
+    // process events from textEntry
+    const evts = dvui.events();
+    for (evts) |*e| {
+        if (!te.matchEvent(e)) {
+            continue;
         }
 
-        switch (self.init_options.dir) {
-            .horizontal => tab_defaults.gravity_y = 1.0,
-            .vertical => tab_defaults.gravity_x = 1.0,
-        }
-
-        const options = tab_defaults.override(opts);
-
-        self.tab_button = ButtonWidget.init(@src(), .{}, options);
-        try self.tab_button.install();
-        self.tab_button.processEvents();
-        try self.tab_button.drawBackground();
-
-        if (self.tab_button.focused() and self.tab_button.data().visible()) {
-            const rs = self.tab_button.data().borderRectScale();
-            const cr = self.tab_button.data().options.corner_radiusGet();
-
-            switch (self.init_options.dir) {
-                .horizontal => {
-                    try dvui.pathAddPoint(rs.r.bottomRight());
-
-                    const tr = Point{ .x = rs.r.x + rs.r.w - cr.y, .y = rs.r.y + cr.y };
-                    try dvui.pathAddArc(tr, cr.y, math.pi * 2.0, math.pi * 1.5, false);
-
-                    const tl = Point{ .x = rs.r.x + cr.x, .y = rs.r.y + cr.x };
-                    try dvui.pathAddArc(tl, cr.x, math.pi * 1.5, math.pi, false);
-
-                    try dvui.pathAddPoint(rs.r.bottomLeft());
-
-                    try dvui.pathStrokeAfter(true, false, 2 * rs.s, .none, self.options.color(.accent));
+        if (e.evt == .key and (e.evt.key.action == .down or e.evt.key.action == .repeat)) {
+            switch (e.evt.key.code) {
+                .up => {
+                    e.handle(@src(), sug.menu.data());
+                    if (sug.willOpen()) {
+                        sug.selected_index -|= 1;
+                    } else {
+                        sug.open();
+                    }
                 },
-                .vertical => {
-                    try dvui.pathAddPoint(rs.r.topRight());
-
-                    const tl = Point{ .x = rs.r.x + cr.x, .y = rs.r.y + cr.x };
-                    try dvui.pathAddArc(tl, cr.x, math.pi * 1.5, math.pi, false);
-
-                    const bl = Point{ .x = rs.r.x + cr.h, .y = rs.r.y + rs.r.h - cr.h };
-                    try dvui.pathAddArc(bl, cr.h, math.pi, math.pi * 0.5, false);
-
-                    try dvui.pathAddPoint(rs.r.bottomRight());
-
-                    try dvui.pathStrokeAfter(true, false, 2 * rs.s, .none, self.options.color(.accent));
+                .down => {
+                    e.handle(@src(), sug.menu.data());
+                    if (sug.willOpen()) {
+                        sug.selected_index += 1;
+                    } else {
+                        sug.open();
+                    }
+                },
+                .escape => {
+                    e.handle(@src(), sug.menu.data());
+                    sug.close();
+                },
+                .enter => {
+                    if (sug.willOpen()) {
+                        e.handle(@src(), sug.menu.data());
+                        sug.activate_selected = true;
+                    }
+                },
+                else => {
+                    if (sug.willOpen() and e.evt.key.action == .down) {
+                        if (e.evt.key.matchBind("next_widget")) {
+                            e.handle(@src(), sug.menu.data());
+                            sug.close();
+                        } else if (e.evt.key.matchBind("prev_widget")) {
+                            e.handle(@src(), sug.menu.data());
+                            sug.close();
+                        }
+                    }
                 },
             }
         }
 
-        return &self.tab_button;
+        if (!e.handled) {
+            te.processEvent(e, false);
+        }
     }
 
-    pub fn deinit(self: *TabsWidget) void {
-        self.box.deinit();
-        self.scroll.deinit();
+    if (init_opts.open_on_text_change and te.text_changed) {
+        sug.open();
+    }
+
+    if (init_opts.open_on_focus) {
+        const focused_last_frame = dvui.dataGet(null, te.data().id, "_focused_last_frame", bool) orelse false;
+        const focused_now = dvui.focusedWidgetId() == te.data().id;
+
+        if (!focused_last_frame and focused_now) {
+            sug.open();
+        }
+
+        dvui.dataSet(null, te.data().id, "_focused_last_frame", focused_now);
+    }
+
+    return sug;
+}
+
+pub const ComboBox = struct {
+    te: *TextEntryWidget = undefined,
+    sug: *SuggestionWidget = undefined,
+
+    /// Returns index of entry if one was selected
+    pub fn entries(self: *ComboBox, items: []const []const u8) !?usize {
+        if (try self.sug.dropped()) {
+            for (items, 0..) |entry, i| {
+                if (try self.sug.addChoiceLabel(entry)) {
+                    self.te.textSet(entry, false);
+                    return i;
+                }
+            }
+        }
+        return null;
+    }
+
+    pub fn deinit(self: *ComboBox) void {
+        self.sug.deinit();
+        self.te.deinit();
     }
 };
+
+pub fn comboBox(src: std.builtin.SourceLocation, init_opts: TextEntryWidget.InitOptions, opts: Options) !*ComboBox {
+    var combo = try currentWindow().arena().create(ComboBox);
+    combo.te = try currentWindow().arena().create(TextEntryWidget);
+    combo.te.* = dvui.TextEntryWidget.init(src, init_opts, opts);
+    try combo.te.install();
+
+    combo.sug = try dvui.suggestion(combo.te, .{ .button = true, .open_on_focus = false, .open_on_text_change = false });
+    // suggestion forwards events to textEntry, so don't call te.processEvents()
+    try combo.te.draw();
+
+    return combo;
+}
 
 pub var expander_defaults: Options = .{
     .padding = Rect.all(4),
@@ -5111,11 +5659,10 @@ pub fn expander(src: std.builtin.SourceLocation, label_str: []const u8, init_opt
     defer bcbox.deinit();
     try bcbox.install();
     try bcbox.drawBackground();
-    const size = options.fontGet().textHeight();
     if (expanded) {
-        try icon(@src(), "down_arrow", entypo.triangle_down, .{ .gravity_y = 0.5, .min_size_content = .{ .h = size } });
+        try icon(@src(), "down_arrow", entypo.triangle_down, .{ .gravity_y = 0.5 });
     } else {
-        try icon(@src(), "right_arrow", entypo.triangle_right, .{ .gravity_y = 0.5, .min_size_content = .{ .h = size } });
+        try icon(@src(), "right_arrow", entypo.triangle_right, .{ .gravity_y = 0.5 });
     }
     try labelNoFmt(@src(), label_str, options.strip());
 
@@ -5155,19 +5702,29 @@ pub fn textLayout(src: std.builtin.SourceLocation, init_opts: TextLayoutWidget.I
     return ret;
 }
 
-/// Context menu.  Pass a screen space pixel rect in init_opts, then
-/// .activePoint() says whether to show a menu.
+/// Context menu.  Pass a screen space pixel rect in `init_opts`, then
+/// `.activePoint()` says whether to show a menu.
 ///
-/// The menu code should happen before deinit(), but don't put regular widgets
+/// The menu code should happen before `.deinit()`, but don't put regular widgets
 /// directly inside Context.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn context(src: std.builtin.SourceLocation, init_opts: ContextWidget.InitOptions, opts: Options) !*ContextWidget {
     var ret = try currentWindow().arena().create(ContextWidget);
     ret.* = ContextWidget.init(src, init_opts, opts);
     try ret.install();
     ret.processEvents();
     return ret;
+}
+
+pub fn tooltip(src: std.builtin.SourceLocation, init_opts: FloatingTooltipWidget.InitOptions, comptime fmt: []const u8, fmt_args: anytype, opts: Options) !void {
+    var tt: dvui.FloatingTooltipWidget = .init(src, init_opts, opts);
+    if (try tt.shown()) {
+        var tl2 = try dvui.textLayout(@src(), .{}, .{ .background = false });
+        try tl2.format(fmt, fmt_args, .{});
+        tl2.deinit();
+    }
+    tt.deinit();
 }
 
 pub fn virtualParent(src: std.builtin.SourceLocation, opts: Options) !*VirtualParentWidget {
@@ -5184,6 +5741,12 @@ pub fn overlay(src: std.builtin.SourceLocation, opts: Options) !*OverlayWidget {
     return ret;
 }
 
+/// Box that lays out children in one direction.  Extra space is allocated
+/// evenly to all children who are expanded in that direction.
+///
+/// See `boxEqual` and `flexbox`.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn box(src: std.builtin.SourceLocation, dir: enums.Direction, opts: Options) !*BoxWidget {
     var ret = try currentWindow().arena().create(BoxWidget);
     ret.* = BoxWidget.init(src, dir, false, opts);
@@ -5192,6 +5755,12 @@ pub fn box(src: std.builtin.SourceLocation, dir: enums.Direction, opts: Options)
     return ret;
 }
 
+/// Box laying out children in `dir` direction.  All children receive equal
+/// space.
+///
+/// See `box` and `flexbox`.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn boxEqual(src: std.builtin.SourceLocation, dir: enums.Direction, opts: Options) !*BoxWidget {
     var ret = try currentWindow().arena().create(BoxWidget);
     ret.* = BoxWidget.init(src, dir, true, opts);
@@ -5200,6 +5769,11 @@ pub fn boxEqual(src: std.builtin.SourceLocation, dir: enums.Direction, opts: Opt
     return ret;
 }
 
+/// Box laying out children horizontally, making new rows as needed.
+///
+/// See `box` and `boxEqual`.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn flexbox(src: std.builtin.SourceLocation, init_opts: FlexBoxWidget.InitOptions, opts: Options) !*FlexBoxWidget {
     var ret = try currentWindow().arena().create(FlexBoxWidget);
     ret.* = FlexBoxWidget.init(src, init_opts, opts);
@@ -5255,6 +5829,7 @@ pub fn spacer(src: std.builtin.SourceLocation, size: Size, opts: Options) !Widge
     const defaults: Options = .{ .name = "Spacer" };
     var wd = WidgetData.init(src, .{}, defaults.override(opts).override(.{ .min_size_content = size }));
     try wd.register();
+    try wd.borderAndBackground(.{});
     wd.minSizeSetAndRefresh();
     wd.minSizeReportToParent();
     return wd;
@@ -5278,33 +5853,42 @@ pub fn spinner(src: std.builtin.SourceLocation, opts: Options) !void {
     const rs = wd.contentRectScale();
     const r = rs.r;
 
-    var angle: f32 = 0;
-    const anim = Animation{ .start_val = 0, .end_val = 2 * math.pi, .end_time = 4_500_000 };
-    if (animationGet(wd.id, "_angle")) |a| {
+    var t: f32 = 0;
+    const anim = Animation{ .end_time = 3_000_000 };
+    if (animationGet(wd.id, "_t")) |a| {
         // existing animation
         var aa = a;
         if (aa.done()) {
-            // this animation is expired, seemlessly transition to next animation
+            // this animation is expired, seamlessly transition to next animation
             aa = anim;
             aa.start_time = a.end_time;
             aa.end_time += a.end_time;
-            animation(wd.id, "_angle", aa);
+            animation(wd.id, "_t", aa);
         }
-        angle = aa.lerp();
+        t = aa.value();
     } else {
         // first frame we are seeing the spinner
-        animation(wd.id, "_angle", anim);
+        animation(wd.id, "_t", anim);
     }
 
-    const center = Point{ .x = r.x + r.w / 2, .y = r.y + r.h / 2 };
-    try pathAddArc(center, @min(r.w, r.h) / 3, angle, 0, false);
-    try pathStroke(false, 3.0 * rs.s, .none, options.color(.text));
+    var path: PathArrayList = .init(dvui.currentWindow().arena());
+    defer path.deinit();
+
+    const full_circle = 2 * std.math.pi;
+    // start begins fast, speeding away from end
+    const start = full_circle * easing.outSine(t);
+    // end begins slow, catching up to start
+    const end = full_circle * easing.inSine(t);
+
+    try pathAddArc(&path, r.center(), @min(r.w, r.h) / 3, start, end, false);
+    try pathStroke(path.items, .{ .thickness = 3.0 * rs.s, .color = options.color(.text) });
 }
 
-pub fn scale(src: std.builtin.SourceLocation, scale_in: f32, opts: Options) !*ScaleWidget {
+pub fn scale(src: std.builtin.SourceLocation, init_opts: ScaleWidget.InitOptions, opts: Options) !*ScaleWidget {
     var ret = try currentWindow().arena().create(ScaleWidget);
-    ret.* = ScaleWidget.init(src, scale_in, opts);
+    ret.* = ScaleWidget.init(src, init_opts, opts);
     try ret.install();
+    ret.processEvents();
     return ret;
 }
 
@@ -5315,12 +5899,12 @@ pub fn menu(src: std.builtin.SourceLocation, dir: enums.Direction, opts: Options
     return ret;
 }
 
-pub fn menuItemLabel(src: std.builtin.SourceLocation, label_str: []const u8, init_opts: MenuItemWidget.InitOptions, opts: Options) !?Rect {
+pub fn menuItemLabel(src: std.builtin.SourceLocation, label_str: []const u8, init_opts: MenuItemWidget.InitOptions, opts: Options) !?Rect.Natural {
     var mi = try menuItem(src, init_opts, opts);
 
     var labelopts = opts.strip();
 
-    var ret: ?Rect = null;
+    var ret: ?Rect.Natural = null;
     if (mi.activeRect()) |r| {
         ret = r;
     }
@@ -5336,14 +5920,14 @@ pub fn menuItemLabel(src: std.builtin.SourceLocation, label_str: []const u8, ini
     return ret;
 }
 
-pub fn menuItemIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: []const u8, init_opts: MenuItemWidget.InitOptions, opts: Options) !?Rect {
+pub fn menuItemIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: []const u8, init_opts: MenuItemWidget.InitOptions, opts: Options) !?Rect.Natural {
     var mi = try menuItem(src, init_opts, opts);
 
     // pass min_size_content through to the icon so that it will figure out the
     // min width based on the height
-    var iconopts = opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content });
+    var iconopts = opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio });
 
-    var ret: ?Rect = null;
+    var ret: ?Rect.Natural = null;
     if (mi.activeRect()) |r| {
         ret = r;
     }
@@ -5373,7 +5957,7 @@ pub fn menuItem(src: std.builtin.SourceLocation, init_opts: MenuItemWidget.InitO
 pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, args: anytype, opts: Options) !bool {
     var ret = false;
 
-    var lw = try LabelWidget.init(src, fmt, args, opts.override(.{ .name = "LabelClick" }));
+    var lw = LabelWidget.init(src, fmt, args, opts.override(.{ .name = "LabelClick" }));
     // now lw has a Rect from its parent but hasn't processed events or drawn
 
     const lwid = lw.data().id;
@@ -5396,20 +5980,20 @@ pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, arg
         switch (e.evt) {
             .mouse => |me| {
                 if (me.action == .focus) {
-                    e.handled = true;
+                    e.handle(@src(), lw.data());
 
                     // focus this widget for events after this one (starting with e.num)
                     dvui.focusWidget(lwid, null, e.num);
                 } else if (me.action == .press and me.button.pointer()) {
-                    e.handled = true;
-                    dvui.captureMouse(lwid);
+                    e.handle(@src(), lw.data());
+                    dvui.captureMouse(lw.data());
 
                     // for touch events, we want to cancel our click if a drag is started
                     dvui.dragPreStart(me.p, .{});
                 } else if (me.action == .release and me.button.pointer()) {
                     // mouse button was released, do we still have mouse capture?
                     if (dvui.captured(lwid)) {
-                        e.handled = true;
+                        e.handle(@src(), lw.data());
 
                         // cancel our capture
                         dvui.captureMouse(null);
@@ -5437,8 +6021,6 @@ pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, arg
                         }
                     }
                 } else if (me.action == .position) {
-                    e.handled = true;
-
                     // a single .position mouse event is at the end of each
                     // frame, so this means the mouse ended above us
                     dvui.cursorSet(.hand);
@@ -5446,7 +6028,7 @@ pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, arg
             },
             .key => |ke| {
                 if (ke.action == .down and ke.matchBind("activate")) {
-                    e.handled = true;
+                    e.handle(@src(), lw.data());
                     ret = true;
                     dvui.refresh(null, @src(), lwid);
                 }
@@ -5476,7 +6058,7 @@ pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, arg
 }
 
 pub fn label(src: std.builtin.SourceLocation, comptime fmt: []const u8, args: anytype, opts: Options) !void {
-    var lw = try LabelWidget.init(src, fmt, args, opts);
+    var lw = LabelWidget.init(src, fmt, args, opts);
     try lw.install();
     lw.processEvents();
     try lw.draw();
@@ -5484,7 +6066,7 @@ pub fn label(src: std.builtin.SourceLocation, comptime fmt: []const u8, args: an
 }
 
 pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: Options) !void {
-    var lw = try LabelWidget.initNoFmt(src, str, opts);
+    var lw = LabelWidget.initNoFmt(src, str, opts);
     try lw.install();
     lw.processEvents();
     try lw.draw();
@@ -5511,26 +6093,107 @@ pub fn imageSize(name: []const u8, image_bytes: []const u8) !Size {
     }
 }
 
-pub fn image(src: std.builtin.SourceLocation, name: []const u8, image_bytes: []const u8, opts: Options) !void {
-    var iw = try ImageWidget.init(src, name, image_bytes, opts);
-    try iw.install();
-    try iw.draw();
-    iw.deinit();
+pub const ImageInitOptions = struct {
+    /// Used for debugging output.
+    name: []const u8 = "image",
+
+    /// Bytes of the image file (like png), decoded lazily and cached.
+    bytes: []const u8,
+
+    /// If min size is larger than the rect we got, how to shrink it:
+    /// - null => use expand setting
+    /// - none => crop
+    /// - horizontal => crop height, fit width
+    /// - vertical => crop width, fit height
+    /// - both => fit in rect ignoring aspect ratio
+    /// - ratio => fit in rect maintaining aspect ratio
+    shrink: ?Options.Expand = null,
+
+    uv: Rect = .{ .w = 1, .h = 1 },
+};
+
+/// Show raster image.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn image(src: std.builtin.SourceLocation, init_opts: ImageInitOptions, opts: Options) !WidgetData {
+    const options = (Options{ .name = init_opts.name }).override(opts);
+
+    var size = Size{};
+    if (options.min_size_content) |msc| {
+        // user gave us a min size, use it
+        size = msc;
+    } else {
+        // user didn't give us one, use natural size
+        size = dvui.imageSize(init_opts.name, init_opts.bytes) catch .{ .w = 10, .h = 10 };
+    }
+
+    var wd = WidgetData.init(src, .{}, options.override(.{ .min_size_content = size }));
+    try wd.register();
+
+    const cr = wd.contentRect();
+    const ms = wd.options.min_size_contentGet();
+
+    var too_big = false;
+    if (ms.w > cr.w or ms.h > cr.h) {
+        too_big = true;
+    }
+
+    var e = wd.options.expandGet();
+    if (too_big) {
+        e = init_opts.shrink orelse e;
+    }
+    const g = wd.options.gravityGet();
+    var rect = dvui.placeIn(cr, ms, e, g);
+
+    if (too_big and e != .ratio) {
+        if (ms.w > cr.w and !e.isHorizontal()) {
+            rect.w = ms.w;
+            rect.x -= g.x * (ms.w - cr.w);
+        }
+
+        if (ms.h > cr.h and !e.isVertical()) {
+            rect.h = ms.h;
+            rect.y -= g.y * (ms.h - cr.h);
+        }
+    }
+
+    // rect is the content rect, so expand to the whole rect
+    wd.rect = rect.outset(wd.options.paddingGet()).outset(wd.options.borderGet()).outset(wd.options.marginGet());
+
+    var renderBackground: ?Color = if (wd.options.backgroundGet()) wd.options.color(.fill) else null;
+
+    if (wd.options.rotationGet() == 0.0) {
+        try wd.borderAndBackground(.{});
+        renderBackground = null;
+    } else {
+        if (wd.options.borderGet().nonZero()) {
+            dvui.log.debug("image {x} can't render border while rotated\n", .{wd.id});
+        }
+    }
+
+    try dvui.renderImage(init_opts.name, init_opts.bytes, wd.contentRectScale(), .{ .rotation = wd.options.rotationGet(), .corner_radius = wd.options.corner_radiusGet(), .uv = init_opts.uv, .background_color = renderBackground });
+
+    wd.minSizeSetAndRefresh();
+    wd.minSizeReportToParent();
+
+    return wd;
 }
 
 pub fn debugFontAtlases(src: std.builtin.SourceLocation, opts: Options) !void {
     const cw = currentWindow();
 
-    var size = Size{};
+    var width: u32 = 0;
+    var height: u32 = 0;
     var it = cw.font_cache.iterator();
     while (it.next()) |kv| {
-        size.w = @max(size.w, kv.value_ptr.texture_atlas_size.w);
-        size.h += kv.value_ptr.texture_atlas_size.h;
+        width = @max(width, kv.value_ptr.texture_atlas.width);
+        height += kv.value_ptr.texture_atlas.height;
     }
 
-    // this size is a pixel size, so inverse scale to get natural pixels
+    const sizePhys: Size.Physical = .{ .w = @floatFromInt(width), .h = @floatFromInt(height) };
+
     const ss = parentGet().screenRectScale(Rect{}).s;
-    size = size.scale(1.0 / ss);
+    const size = sizePhys.scale(1.0 / ss, Size);
 
     var wd = WidgetData.init(src, .{}, opts.override(.{ .name = "debugFontAtlases", .min_size_content = size }));
     try wd.register();
@@ -5587,8 +6250,8 @@ pub fn buttonIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: 
     bw.processEvents();
     try bw.drawBackground();
 
-    // pass min_size_content through to the icon so that it will figure out the
-    // min width based on the height
+    // When someone passes min_size_content to buttonIcon, they want the icon
+    // to be that size, so we pass it through.
     try icon(@src(), name, tvg_bytes, opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio }));
 
     const click = bw.clicked();
@@ -5601,6 +6264,7 @@ pub var slider_defaults: Options = .{
     .padding = Rect.all(2),
     .min_size_content = .{ .w = 20, .h = 20 },
     .color_fill = .{ .name = .fill_control },
+    .name = "Slider",
 };
 
 // returns true if fraction (0-1) was changed
@@ -5637,26 +6301,26 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
 
         switch (e.evt) {
             .mouse => |me| {
-                var p: ?Point = null;
+                var p: ?Point.Physical = null;
                 if (me.action == .focus) {
-                    e.handled = true;
+                    e.handle(@src(), b.data());
                     focusWidget(b.data().id, null, e.num);
                 } else if (me.action == .press and me.button.pointer()) {
                     // capture
-                    captureMouse(b.data().id);
-                    e.handled = true;
+                    captureMouse(b.data());
+                    e.handle(@src(), b.data());
                     p = me.p;
                 } else if (me.action == .release and me.button.pointer()) {
                     // stop capture
                     captureMouse(null);
                     dragEnd();
-                    e.handled = true;
+                    e.handle(@src(), b.data());
                 } else if (me.action == .motion and captured(b.data().id)) {
                     // handle only if we have capture
-                    e.handled = true;
+                    e.handle(@src(), b.data());
                     p = me.p;
                 } else if (me.action == .position) {
-                    e.handled = true;
+                    dvui.cursorSet(.arrow);
                     hovered = true;
                 }
 
@@ -5686,12 +6350,12 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
                 if (ke.action == .down or ke.action == .repeat) {
                     switch (ke.code) {
                         .left, .down => {
-                            e.handled = true;
+                            e.handle(@src(), b.data());
                             fraction.* = @max(0, @min(1, fraction.* - 0.05));
                             ret = true;
                         },
                         .right, .up => {
-                            e.handled = true;
+                            e.handle(@src(), b.data());
                             fraction.* = @max(0, @min(1, fraction.* + 0.05));
                             ret = true;
                         },
@@ -5715,8 +6379,7 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
         },
     }
     if (b.data().visible()) {
-        try pathAddRect(part, options.corner_radiusGet().scale(trackrs.s));
-        try pathFillConvex(options.color(.accent));
+        try part.fill(options.corner_radiusGet().scale(trackrs.s, Rect.Physical), .{ .color = options.color(.accent) });
     }
 
     switch (dir) {
@@ -5730,8 +6393,7 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
         },
     }
     if (b.data().visible()) {
-        try pathAddRect(part, options.corner_radiusGet().scale(trackrs.s));
-        try pathFillConvex(options.color(.fill));
+        try part.fill(options.corner_radiusGet().scale(trackrs.s, Rect.Physical), .{ .color = options.color(.fill) });
     }
 
     const knobRect = switch (dir) {
@@ -5768,7 +6430,8 @@ pub var slider_entry_defaults: Options = .{
     .padding = Rect.all(2),
     .color_fill = .{ .name = .fill_control },
     .background = true,
-    // min size calulated from font
+    // min size calculated from font
+    .name = "SliderEntry",
 };
 
 pub const SliderEntryInitOptions = struct {
@@ -5860,20 +6523,20 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
                 continue;
 
             if (e.evt == .key and e.evt.key.action == .down and e.evt.key.code == .enter) {
-                e.handled = true;
+                e.handle(@src(), b.data());
                 text_mode = false;
                 new_val = std.fmt.parseFloat(f32, te_buf[0..te.len]) catch null;
             }
 
             if (e.evt == .key and e.evt.key.action == .down and e.evt.key.code == .escape) {
-                e.handled = true;
+                e.handle(@src(), b.data());
                 text_mode = false;
                 // don't set new_val, we are escaping
             }
 
             // don't want TextEntry to get focus
             if (e.evt == .mouse and e.evt.mouse.action == .focus) {
-                e.handled = true;
+                e.handle(@src(), b.data());
                 focusWidget(b.data().id, null, e.num);
             }
 
@@ -5883,7 +6546,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
         }
 
         if (b.data().id == focusedWidgetId()) {
-            dvui.wantTextInput(b.data().borderRectScale().r);
+            dvui.wantTextInput(b.data().borderRectScale().r.toNatural());
         } else {
 
             // we lost focus
@@ -5922,31 +6585,51 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
 
             switch (e.evt) {
                 .mouse => |me| {
-                    var p: ?Point = null;
+                    var p: ?Point.Physical = null;
                     if (me.action == .focus) {
-                        e.handled = true;
+                        e.handle(@src(), b.data());
                         focusWidget(b.data().id, null, e.num);
                     } else if (me.action == .press and me.button.pointer()) {
-                        e.handled = true;
+                        e.handle(@src(), b.data());
                         if (ctrl_down) {
                             text_mode = true;
+                            refresh(null, @src(), b.data().id);
                         } else {
-                            captureMouse(b.data().id);
-                            p = me.p;
+                            captureMouse(b.data());
                             dataSet(null, b.data().id, "_start_x", me.p.x);
                             dataSet(null, b.data().id, "_start_v", init_opts.value.*);
+
+                            if (me.button.touch()) {
+                                dvui.dragPreStart(me.p, .{});
+                            } else {
+                                // Only start tracking the position on press if this
+                                // is not a touch to prevent the value from
+                                // "jumping" when entering text mode on a
+                                // touch-tap event
+                                p = me.p;
+                            }
                         }
                     } else if (me.action == .release and me.button.pointer()) {
-                        e.handled = true;
+                        if (me.button.touch() and dvui.dragging(me.p) == null) {
+                            text_mode = true;
+                            refresh(null, @src(), b.data().id);
+                        }
+                        e.handle(@src(), b.data());
                         captureMouse(null);
                         dragEnd();
                         dataRemove(null, b.data().id, "_start_x");
                         dataRemove(null, b.data().id, "_start_v");
                     } else if (me.action == .motion and captured(b.data().id)) {
-                        e.handled = true;
-                        p = me.p;
+                        e.handle(@src(), b.data());
+                        // If this is a touch motion we need to make sure to
+                        // only update the value if we are exceeding the
+                        // drag threshold to prevent the value from jumping while
+                        // entering text mode via a non-drag touch-tap
+                        if (!me.button.touch() or dvui.dragging(me.p) != null) {
+                            p = me.p;
+                        }
                     } else if (me.action == .position) {
-                        e.handled = true;
+                        dvui.cursorSet(.arrow);
                         hover = true;
                     }
 
@@ -6013,7 +6696,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
                     } else if (ke.action == .down or ke.action == .repeat) {
                         switch (ke.code) {
                             .left, .right => {
-                                e.handled = true;
+                                e.handle(@src(), b.data());
                                 ret = true;
                                 if (init_opts.interval) |ival| {
                                     init_opts.value.* = init_opts.value.* + (if (ke.code == .left) -ival else ival);
@@ -6050,8 +6733,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
             const knobRect = Rect{ .x = (br.w - knobsize) * math.clamp(how_far, 0, 1), .w = knobsize, .h = knobsize };
             const knobrs = b.widget().screenRectScale(knobRect);
 
-            try pathAddRect(knobrs.r, options.corner_radiusGet().scale(knobrs.s));
-            try pathFillConvex(options.color(.fill_press));
+            try knobrs.r.fill(options.corner_radiusGet().scale(knobrs.s, Rect.Physical), .{ .color = options.color(.fill_press) });
         }
 
         try label(@src(), label_fmt orelse "{d:.3}", .{init_opts.value.*}, options.strip().override(.{ .expand = .both, .gravity_x = 0.5, .gravity_y = 0.5 }));
@@ -6072,9 +6754,9 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
 }
 
 fn isF32Slice(comptime ptr: std.builtin.Type.Pointer, comptime child_info: std.builtin.Type) bool {
-    const is_slice = ptr.size == .Slice;
+    const is_slice = ptr.size == .slice;
     const holds_f32 = switch (child_info) {
-        .Float => |f| f.bits == 32,
+        .float => |f| f.bits == 32,
         else => false,
     };
 
@@ -6091,7 +6773,7 @@ fn isF32Slice(comptime ptr: std.builtin.Type.Pointer, comptime child_info: std.b
 
 fn checkAndCastDataPtr(comptime num_components: u32, value: anytype) *[num_components]f32 {
     switch (@typeInfo(@TypeOf(value))) {
-        .Pointer => |ptr| {
+        .pointer => |ptr| {
             const child_info = @typeInfo(ptr.child);
             const is_f32_slice = comptime isF32Slice(ptr, child_info);
 
@@ -6102,8 +6784,8 @@ fn checkAndCastDataPtr(comptime num_components: u32, value: anytype) *[num_compo
             // If not slice, need to check for arrays and vectors.
             // Need to also check the length.
             const data_len = switch (child_info) {
-                .Vector => |vec| vec.len,
-                .Array => |arr| arr.len,
+                .vector => |vec| vec.len,
+                .array => |arr| arr.len,
                 else => @compileError("Must supply a pointer to a vector or array!"),
             };
 
@@ -6130,7 +6812,7 @@ pub fn sliderVector(line: std.builtin.SourceLocation, comptime fmt: []const u8, 
 
     var any_changed = false;
     inline for (0..num_components) |i| {
-        const component_opts = .{
+        const component_opts = dvui.SliderEntryInitOptions{
             .value = &data_arr[i],
             .min = init_opts.min,
             .max = init_opts.max,
@@ -6163,8 +6845,7 @@ pub fn progress(src: std.builtin.SourceLocation, init_opts: Progress_InitOptions
 
     const rs = b.data().contentRectScale();
 
-    try pathAddRect(rs.r, options.corner_radiusGet().scale(rs.s));
-    try pathFillConvex(options.color(.fill));
+    try rs.r.fill(options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .color = options.color(.fill) });
 
     const perc = @max(0, @min(1, init_opts.percent));
     if (perc == 0) return;
@@ -6180,8 +6861,7 @@ pub fn progress(src: std.builtin.SourceLocation, init_opts: Progress_InitOptions
             part.h = rs.r.h - h;
         },
     }
-    try pathAddRect(part, options.corner_radiusGet().scale(rs.s));
-    try pathFillConvex(options.color(.accent));
+    try part.fill(options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .color = options.color(.accent) });
 }
 
 pub var checkbox_defaults: Options = .{
@@ -6228,28 +6908,26 @@ pub fn checkbox(src: std.builtin.SourceLocation, target: *bool, label_str: ?[]co
 }
 
 pub fn checkmark(checked: bool, focused: bool, rs: RectScale, pressed: bool, hovered: bool, opts: Options) !void {
-    try pathAddRect(rs.r, opts.corner_radiusGet().scale(rs.s));
-    try pathFillConvex(opts.color(.border));
+    const cornerRad = opts.corner_radiusGet().scale(rs.s, Rect.Physical);
+    try rs.r.fill(cornerRad, .{ .color = opts.color(.border) });
 
     if (focused) {
-        try pathAddRect(rs.r, opts.corner_radiusGet().scale(rs.s));
-        try pathStroke(true, 2 * rs.s, .none, opts.color(.accent));
+        try rs.r.stroke(cornerRad, .{ .thickness = 2 * rs.s, .color = dvui.themeGet().color_accent });
+    }
+
+    var fill: Options.ColorAsk = .fill;
+    if (pressed) {
+        fill = .fill_press;
+    } else if (hovered) {
+        fill = .fill_hover;
     }
 
     var options = opts;
     if (checked) {
         options = opts.override(themeGet().style_accent);
-        try pathAddRect(rs.r.insetAll(0.5 * rs.s), opts.corner_radiusGet().scale(rs.s));
+        try rs.r.insetAll(0.5 * rs.s).fill(cornerRad, .{ .color = options.color(fill) });
     } else {
-        try pathAddRect(rs.r.insetAll(rs.s), opts.corner_radiusGet().scale(rs.s));
-    }
-
-    if (pressed) {
-        try pathFillConvex(options.color(.fill_press));
-    } else if (hovered) {
-        try pathFillConvex(options.color(.fill_hover));
-    } else {
-        try pathFillConvex(options.color(.fill));
+        try rs.r.insetAll(rs.s).fill(cornerRad, .{ .color = options.color(fill) });
     }
 
     if (checked) {
@@ -6264,10 +6942,12 @@ pub fn checkmark(checked: bool, focused: bool, rs: RectScale, pressed: bool, hov
 
         thick /= 1.5;
 
-        try pathAddPoint(Point{ .x = x - third, .y = y - third });
-        try pathAddPoint(Point{ .x = x, .y = y });
-        try pathAddPoint(Point{ .x = x + third * 2, .y = y - third * 2 });
-        try pathStroke(false, thick, .square, options.color(.text));
+        const path: PathSlice = &.{
+            .{ .x = x - third, .y = y - third },
+            .{ .x = x, .y = y },
+            .{ .x = x + third * 2, .y = y - third * 2 },
+        };
+        try pathStroke(path, .{ .thickness = thick, .color = options.color(.text), .endcap_style = .square });
     }
 }
 
@@ -6314,35 +6994,33 @@ pub fn radio(src: std.builtin.SourceLocation, active: bool, label_str: ?[]const 
 }
 
 pub fn radioCircle(active: bool, focused: bool, rs: RectScale, pressed: bool, hovered: bool, opts: Options) !void {
-    try pathAddRect(rs.r, Rect.all(1000));
-    try pathFillConvex(opts.color(.border));
+    const cornerRad = Rect.Physical.all(1000);
+    const r = rs.r;
+    try r.fill(cornerRad, .{ .color = opts.color(.border) });
 
     if (focused) {
-        try pathAddRect(rs.r, Rect.all(1000));
-        try pathStroke(true, 2 * rs.s, .none, opts.color(.accent));
+        try r.stroke(cornerRad, .{ .thickness = 2 * rs.s, .color = dvui.themeGet().color_accent });
+    }
+
+    var fill: Options.ColorAsk = .fill;
+    if (pressed) {
+        fill = .fill_press;
+    } else if (hovered) {
+        fill = .fill_hover;
     }
 
     var options = opts;
     if (active) {
         options = opts.override(themeGet().style_accent);
-        try pathAddRect(rs.r.insetAll(0.5 * rs.s), Rect.all(1000));
+        try r.insetAll(0.5 * rs.s).fill(cornerRad, .{ .color = options.color(.fill) });
     } else {
-        try pathAddRect(rs.r.insetAll(rs.s), Rect.all(1000));
-    }
-
-    if (pressed) {
-        try pathFillConvex(options.color(.fill_press));
-    } else if (hovered) {
-        try pathFillConvex(options.color(.fill_hover));
-    } else {
-        try pathFillConvex(options.color(.fill));
+        try r.insetAll(rs.s).fill(cornerRad, .{ .color = opts.color(fill) });
     }
 
     if (active) {
-        const thick = @max(1.0, rs.r.w / 6);
+        const thick = @max(1.0, r.w / 6);
 
-        try pathAddPoint(Point{ .x = rs.r.x + rs.r.w / 2, .y = rs.r.y + rs.r.h / 2 });
-        try pathStroke(false, thick, .square, options.color(.text));
+        try pathStroke(&.{r.center()}, .{ .thickness = thick, .color = options.color(.text) });
     }
 }
 
@@ -6408,11 +7086,11 @@ pub fn TextEntryNumberResult(comptime T: type) type {
 pub fn textEntryNumber(src: std.builtin.SourceLocation, comptime T: type, init_opts: TextEntryNumberInitOptions(T), opts: Options) !TextEntryNumberResult(T) {
     const base_filter = "1234567890";
     const filter = switch (@typeInfo(T)) {
-        .Int => |int| switch (int.signedness) {
+        .int => |int| switch (int.signedness) {
             .signed => base_filter ++ "+-",
             .unsigned => base_filter ++ "+",
         },
-        .Float => base_filter ++ "+-.e",
+        .float => base_filter ++ "+-.e",
         else => unreachable,
     };
 
@@ -6444,8 +7122,8 @@ pub fn textEntryNumber(src: std.builtin.SourceLocation, comptime T: type, init_o
     // validation
     const text = te.getText();
     const num = switch (@typeInfo(T)) {
-        .Int => std.fmt.parseInt(T, text, 10) catch null,
-        .Float => std.fmt.parseFloat(T, text) catch null,
+        .int => std.fmt.parseInt(T, text, 10) catch null,
+        .float => std.fmt.parseFloat(T, text) catch null,
         else => unreachable,
     };
 
@@ -6473,9 +7151,7 @@ pub fn textEntryNumber(src: std.builtin.SourceLocation, comptime T: type, init_o
 
     if (result.value != .Valid and (init_opts.value != null or result.value != .Empty)) {
         const rs = te.data().borderRectScale();
-        try dvui.pathAddRect(rs.r.outsetAll(1), te.data().options.corner_radiusGet());
-        const color = dvui.themeGet().color_err;
-        try dvui.pathStrokeAfter(true, true, 3 * rs.s, .none, color);
+        try rs.r.outsetAll(1).stroke(te.data().options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .thickness = 3 * rs.s, .color = dvui.themeGet().color_err, .after = true });
     }
 
     // display min/max
@@ -6495,6 +7171,195 @@ pub fn textEntryNumber(src: std.builtin.SourceLocation, comptime T: type, init_o
     te.deinit();
 
     return result;
+}
+
+pub const TextEntryColorInitOptions = struct {
+    value: ?*Color = null,
+    placeholder: []const u8 = "#ff00ff",
+    /// If this is true, the alpha with be taken from the last hex value,
+    /// if it is included in the input
+    allow_alpha: bool = true,
+};
+
+pub const TextEntryColorResult = struct {
+    value: union(enum) {
+        Valid: Color,
+        Invalid: enum {
+            non_hex_value,
+            alpha_passed_when_not_allowed,
+        },
+        Empty: void,
+    } = .{ .Invalid = .non_hex_value },
+
+    /// True if given a value pointer and wrote a valid value back to it.
+    changed: bool = false,
+    enter_pressed: bool = false,
+};
+
+/// A text entry for hex color codes. Supports the same formats as `Color.fromHex`
+pub fn textEntryColor(src: std.builtin.SourceLocation, init_opts: TextEntryColorInitOptions, opts: Options) !TextEntryColorResult {
+    const defaults = Options{ .name = "textEntryColor" };
+
+    var options = defaults.override(opts);
+    if (options.min_size_content == null) {
+        options = options.override(.{ .min_size_content = opts.fontGet().textSize(if (init_opts.allow_alpha) "#DDDDDDDD" else "#DDDDDD") });
+    }
+
+    const id = dvui.parentGet().extendId(src, opts.idExtra());
+
+    const buffer = dataGetSliceDefault(null, id, "buffer", []u8, &[_]u8{0} ** 9);
+
+    const cw = currentWindow();
+    var te = try cw.arena().create(TextEntryWidget);
+    te.* = TextEntryWidget.init(src, .{ .text = .{ .buffer = buffer }, .placeholder = init_opts.placeholder }, options);
+    try te.install();
+
+    //initialize with input number
+    if (init_opts.value) |v| {
+        const old_value = dataGet(null, id, "value", Color);
+        if (old_value == null or
+            old_value.?.r != v.r or
+            old_value.?.g != v.g or
+            old_value.?.b != v.b or
+            old_value.?.a != v.a)
+        {
+            dataSet(null, id, "value", v.*);
+            @memset(buffer, 0); // clear out anything that was there before
+            if (init_opts.allow_alpha and v.a != 0xff) {
+                _ = try std.fmt.bufPrint(buffer, "#{x:0>2}{x:0>2}{x:0>2}{x:0>2}", .{ v.r, v.g, v.b, v.a });
+                te.len = 9;
+            } else {
+                te.textSet(&(v.toHexString() catch unreachable), false);
+            }
+        }
+    }
+
+    te.processEvents();
+    // filter before drawing
+    te.filterIn(std.fmt.hex_charset ++ "ABCDEF" ++ "#");
+
+    var result: TextEntryColorResult = .{ .enter_pressed = te.enter_pressed };
+
+    // validation
+    const text = te.getText();
+    const color: ?Color = Color.tryFromHex(text) catch null;
+
+    //determine error if any
+    if (text.len == 0 and color == null) {
+        result.value = .Empty;
+    } else if (color == null) {
+        result.value = .{ .Invalid = .non_hex_value };
+    } else if (!init_opts.allow_alpha and color.?.a != 0xFF) {
+        result.value = .{ .Invalid = .alpha_passed_when_not_allowed };
+    } else {
+        result.value = .{ .Valid = color.? };
+        if (init_opts.value) |v| {
+            if ((te.enter_pressed or te.text_changed) and
+                (color.?.r != v.r or
+                    color.?.g != v.g or
+                    color.?.b != v.b or
+                    color.?.a != v.a))
+            {
+                dataSet(null, id, "value", color.?);
+                v.* = color.?;
+                result.changed = true;
+            }
+        }
+    }
+
+    if (init_opts.value != null and result.value == .Empty and focusedWidgetId() != te.wd.id) {
+        // If the text entry is empty and we loose focus,
+        // reset the hex value by invalidating the stored previous value
+        dataRemove(null, id, "value");
+        refresh(null, @src(), id);
+    }
+
+    try te.draw();
+
+    if (result.value != .Valid and (init_opts.value != null or result.value != .Empty)) {
+        const rs = te.data().borderRectScale();
+        try rs.r.outsetAll(1).stroke(te.data().options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .thickness = 3 * rs.s, .color = dvui.themeGet().color_err, .after = true });
+    }
+
+    te.deinit();
+
+    return result;
+}
+
+pub const ColorPickerInitOptions = struct {
+    hsv: *Color.HSV,
+    dir: enums.Direction = .horizontal,
+    sliders: enum { rgb, hsv } = .rgb,
+    alpha: bool = false,
+    /// Shows a `textEntryColor`
+    hex_text_entry: bool = true,
+};
+
+/// A photoshop style color picker
+///
+/// Returns true of the color was changed
+pub fn colorPicker(src: std.builtin.SourceLocation, init_opts: ColorPickerInitOptions, opts: Options) !bool {
+    var picker = ColorPickerWidget.init(src, .{ .dir = init_opts.dir, .hsv = init_opts.hsv }, opts);
+    try picker.install();
+    defer picker.deinit();
+
+    var changed = picker.color_changed;
+    var rgb = init_opts.hsv.toColor();
+
+    var side_box = try dvui.box(@src(), .vertical, .{});
+    defer side_box.deinit();
+
+    const slider_expand = Options.Expand.fromDirection(.horizontal);
+    switch (init_opts.sliders) {
+        .rgb => {
+            var r = @as(f32, @floatFromInt(rgb.r));
+            var g = @as(f32, @floatFromInt(rgb.g));
+            var b = @as(f32, @floatFromInt(rgb.b));
+            var a = @as(f32, @floatFromInt(rgb.a));
+
+            var slider_changed = false;
+            if (try dvui.sliderEntry(@src(), "R: {d:0.0}", .{ .value = &r, .min = 0, .max = 255, .interval = 1 }, .{ .expand = slider_expand })) {
+                slider_changed = true;
+            }
+            if (try dvui.sliderEntry(@src(), "G: {d:0.0}", .{ .value = &g, .min = 0, .max = 255, .interval = 1 }, .{ .expand = slider_expand })) {
+                slider_changed = true;
+            }
+            if (try dvui.sliderEntry(@src(), "B: {d:0.0}", .{ .value = &b, .min = 0, .max = 255, .interval = 1 }, .{ .expand = slider_expand })) {
+                slider_changed = true;
+            }
+            if (init_opts.alpha and try dvui.sliderEntry(@src(), "A: {d:0.0}", .{ .value = &a, .min = 0, .max = 255, .interval = 1 }, .{ .expand = slider_expand })) {
+                slider_changed = true;
+            }
+            if (slider_changed) {
+                init_opts.hsv.* = .fromColor(.{ .r = @intFromFloat(r), .g = @intFromFloat(g), .b = @intFromFloat(b), .a = @intFromFloat(a) });
+                changed = true;
+            }
+        },
+        .hsv => {
+            if (try dvui.sliderEntry(@src(), "H: {d:0.0}", .{ .value = &init_opts.hsv.h, .min = 0, .max = 359.99, .interval = 1 }, .{ .expand = slider_expand })) {
+                changed = true;
+            }
+            if (try dvui.sliderEntry(@src(), "S: {d:0.2}", .{ .value = &init_opts.hsv.s, .min = 0, .max = 1, .interval = 0.01 }, .{ .expand = slider_expand })) {
+                changed = true;
+            }
+            if (try dvui.sliderEntry(@src(), "V: {d:0.2}", .{ .value = &init_opts.hsv.v, .min = 0, .max = 1, .interval = 0.01 }, .{ .expand = slider_expand })) {
+                changed = true;
+            }
+            if (init_opts.alpha and try dvui.sliderEntry(@src(), "A: {d:0.2}", .{ .value = &init_opts.hsv.a, .min = 0, .max = 1, .interval = 0.01 }, .{ .expand = slider_expand })) {
+                changed = true;
+            }
+        },
+    }
+
+    if (init_opts.hex_text_entry) {
+        const res = try textEntryColor(@src(), .{ .allow_alpha = init_opts.alpha, .value = &rgb }, .{ .expand = slider_expand });
+        if (res.changed) {
+            init_opts.hsv.* = .fromColor(rgb);
+            changed = true;
+        }
+    }
+
+    return changed;
 }
 
 pub const renderTextOptions = struct {
@@ -6676,8 +7541,7 @@ pub fn renderText(opts: renderTextOptions) !void {
             }
         }
 
-        fce.texture_atlas = textureCreate(pixels.ptr, @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear);
-        fce.texture_atlas_size = size;
+        fce.texture_atlas = textureCreate(.cast(pixels), @as(u32, @intFromFloat(size.w)), @as(u32, @intFromFloat(size.h)), .linear);
     }
 
     var vtx = std.ArrayList(Vertex).init(cw.arena());
@@ -6708,12 +7572,38 @@ pub fn renderText(opts: renderTextOptions) !void {
         sel = true;
     }
 
+    const atlas_size: Size = .{ .w = @floatFromInt(fce.texture_atlas.width), .h = @floatFromInt(fce.texture_atlas.height) };
+
     var bytes_seen: usize = 0;
     var utf8 = (try std.unicode.Utf8View.init(opts.text)).iterator();
+    var last_codepoint: u32 = 0;
+    var last_glyph_index: u32 = 0;
     while (utf8.nextCodepoint()) |codepoint| {
         const gi = try fce.glyphInfoGet(@as(u32, @intCast(codepoint)), opts.font.name);
 
-        // TODO: kerning
+        // kerning
+        if (last_codepoint != 0) {
+            if (useFreeType) {
+                if (last_glyph_index == 0) last_glyph_index = c.FT_Get_Char_Index(fce.face, last_codepoint);
+                const glyph_index: u32 = c.FT_Get_Char_Index(fce.face, codepoint);
+                var kern: c.FT_Vector = undefined;
+                FontCacheEntry.intToError(c.FT_Get_Kerning(fce.face, last_glyph_index, glyph_index, c.FT_KERNING_DEFAULT, &kern)) catch |err| {
+                    log.warn("renderText freetype error {!} trying to FT_Get_Kerning font {s} codepoints {d} {d}\n", .{ err, opts.font.name, last_codepoint, codepoint });
+                    return error.freetypeError;
+                };
+                last_glyph_index = glyph_index;
+
+                const kern_x: f32 = @as(f32, @floatFromInt(kern.x)) / 64.0;
+
+                x += kern_x;
+            } else {
+                const kern_adv: c_int = c.stbtt_GetCodepointKernAdvance(&fce.face, @as(c_int, @intCast(last_codepoint)), @as(c_int, @intCast(codepoint)));
+                const kern_x = fce.scaleFactor * @as(f32, @floatFromInt(kern_adv));
+
+                x += kern_x;
+            }
+        }
+        last_codepoint = codepoint;
 
         const nextx = x + gi.advance * target_fraction;
 
@@ -6734,46 +7624,48 @@ pub fn renderText(opts: renderTextOptions) !void {
             }
         }
 
-        const len = @as(u32, @intCast(vtx.items.len));
-        var v: Vertex = undefined;
+        // don't output triangles for a zero-width glyph (space seems to be the only one)
+        if (gi.w > 0) {
+            const len = @as(u32, @intCast(vtx.items.len));
+            var v: Vertex = undefined;
 
-        v.pos.x = x + gi.leftBearing * target_fraction;
-        v.pos.y = y + gi.topBearing * target_fraction;
-        v.col = if (sel_in) opts.sel_color orelse opts.color else opts.color;
-        v.col = v.col.alphaMultiply();
-        v.uv = gi.uv;
-        try vtx.append(v);
+            v.pos.x = x + gi.leftBearing * target_fraction;
+            v.pos.y = y + gi.topBearing * target_fraction;
+            v.col = .fromColor(if (sel_in) opts.sel_color orelse opts.color else opts.color);
+            v.uv = gi.uv;
+            try vtx.append(v);
 
-        if (opts.debug) {
-            log.debug(" - x {d} y {d}", .{ v.pos.x, v.pos.y });
+            if (opts.debug) {
+                log.debug(" - x {d} y {d}", .{ v.pos.x, v.pos.y });
+            }
+
+            if (opts.debug) {
+                //log.debug("{d} pad {d} minx {d} maxx {d} miny {d} maxy {d} x {d} y {d}", .{ bytes_seen, pad, gi.minx, gi.maxx, gi.miny, gi.maxy, v.pos.x, v.pos.y });
+                //log.debug("{d} pad {d} left {d} top {d} w {d} h {d} advance {d}", .{ bytes_seen, pad, gi.f2_leftBearing, gi.f2_topBearing, gi.f2_w, gi.f2_h, gi.f2_advance });
+            }
+
+            v.pos.x = x + (gi.leftBearing + gi.w) * target_fraction;
+            max_x = v.pos.x;
+            v.uv[0] = gi.uv[0] + gi.w / atlas_size.w;
+            try vtx.append(v);
+
+            v.pos.y = y + (gi.topBearing + gi.h) * target_fraction;
+            sel_max_y = @max(sel_max_y, v.pos.y);
+            v.uv[1] = gi.uv[1] + gi.h / atlas_size.h;
+            try vtx.append(v);
+
+            v.pos.x = x + gi.leftBearing * target_fraction;
+            v.uv[0] = gi.uv[0];
+            try vtx.append(v);
+
+            // triangles must be counter-clockwise (y going down) to avoid backface culling
+            try idx.append(@as(u16, @intCast(len + 0)));
+            try idx.append(@as(u16, @intCast(len + 2)));
+            try idx.append(@as(u16, @intCast(len + 1)));
+            try idx.append(@as(u16, @intCast(len + 0)));
+            try idx.append(@as(u16, @intCast(len + 3)));
+            try idx.append(@as(u16, @intCast(len + 2)));
         }
-
-        if (opts.debug) {
-            //log.debug("{d} pad {d} minx {d} maxx {d} miny {d} maxy {d} x {d} y {d}", .{ bytes_seen, pad, gi.minx, gi.maxx, gi.miny, gi.maxy, v.pos.x, v.pos.y });
-            //log.debug("{d} pad {d} left {d} top {d} w {d} h {d} advance {d}", .{ bytes_seen, pad, gi.f2_leftBearing, gi.f2_topBearing, gi.f2_w, gi.f2_h, gi.f2_advance });
-        }
-
-        v.pos.x = x + (gi.leftBearing + gi.w) * target_fraction;
-        max_x = v.pos.x;
-        v.uv[0] = gi.uv[0] + gi.w / fce.texture_atlas_size.w;
-        try vtx.append(v);
-
-        v.pos.y = y + (gi.topBearing + gi.h) * target_fraction;
-        sel_max_y = @max(sel_max_y, v.pos.y);
-        v.uv[1] = gi.uv[1] + gi.h / fce.texture_atlas_size.h;
-        try vtx.append(v);
-
-        v.pos.x = x + gi.leftBearing * target_fraction;
-        v.uv[0] = gi.uv[0];
-        try vtx.append(v);
-
-        // triangles must be counter-clockwise (y going down) to avoid backface culling
-        try idx.append(@as(u16, @intCast(len + 0)));
-        try idx.append(@as(u16, @intCast(len + 2)));
-        try idx.append(@as(u16, @intCast(len + 1)));
-        try idx.append(@as(u16, @intCast(len + 0)));
-        try idx.append(@as(u16, @intCast(len + 3)));
-        try idx.append(@as(u16, @intCast(len + 2)));
 
         x = nextx;
     }
@@ -6791,26 +7683,28 @@ pub fn renderText(opts: renderTextOptions) !void {
             sel_vtx[2].pos.y = sel_vtx[3].pos.y;
 
             for (&sel_vtx) |*v| {
-                v.col = bgcol.alphaMultiply();
+                v.col = .fromColor(bgcol);
                 v.uv[0] = 0;
                 v.uv[1] = 0;
             }
 
-            const selr = Rect.fromPoint(sel_vtx[0].pos).toPoint(sel_vtx[2].pos);
+            const selr = Rect.Physical.fromPoint(sel_vtx[0].pos).toPoint(sel_vtx[2].pos);
             const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-            const clipr: ?Rect = if (selr.clippedBy(clip_offset)) clip_offset else null;
+            const clipr: ?Rect.Physical = if (selr.clippedBy(clip_offset)) clip_offset else null;
 
             // triangles must be counter-clockwise (y going down) to avoid backface culling
             cw.backend.drawClippedTriangles(null, &sel_vtx, &[_]u16{ 0, 2, 1, 0, 3, 2 }, clipr);
         }
     }
 
-    // due to floating point inaccuracies, shrink by 1/1000 of a pixel before testing
-    const txtr = (Rect{ .x = x_start, .y = y, .w = max_x - x_start, .h = sel_max_y - y }).insetAll(0.001);
-    const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-    const clipr: ?Rect = if (txtr.clippedBy(clip_offset)) clip_offset else null;
+    if (vtx.items.len > 0) {
+        // due to floating point inaccuracies, shrink by 1/100 of a pixel before testing
+        const txtr = (Rect.Physical{ .x = x_start, .y = y, .w = max_x - x_start, .h = sel_max_y - y }).insetAll(0.01);
+        const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
+        const clipr: ?Rect.Physical = if (txtr.clippedBy(clip_offset)) clip_offset else null;
 
-    cw.backend.drawClippedTriangles(fce.texture_atlas, vtx.items, idx.items, clipr);
+        cw.backend.drawClippedTriangles(fce.texture_atlas, vtx.items, idx.items, clipr);
+    }
 }
 
 pub fn debugRenderFontAtlases(rs: RectScale, color: Color) !void {
@@ -6830,7 +7724,7 @@ pub fn debugRenderFontAtlases(rs: RectScale, color: Color) !void {
 
     const x: f32 = if (cw.snap_to_pixels) @round(r.x) else r.x;
     const y: f32 = if (cw.snap_to_pixels) @round(r.y) else r.y;
-    const col = color.alphaMultiply();
+    const col: Color.PMA = .fromColor(color);
 
     var offset: f32 = 0;
     var it = cw.font_cache.iterator();
@@ -6848,11 +7742,11 @@ pub fn debugRenderFontAtlases(rs: RectScale, color: Color) !void {
         v.uv = .{ 0, 0 };
         try vtx.append(v);
 
-        v.pos.x = x + kv.value_ptr.texture_atlas_size.w;
+        v.pos.x = x + @as(f32, @floatFromInt(kv.value_ptr.texture_atlas.width));
         v.uv[0] = 1;
         try vtx.append(v);
 
-        v.pos.y = y + offset + kv.value_ptr.texture_atlas_size.h;
+        v.pos.y = y + offset + @as(f32, @floatFromInt(kv.value_ptr.texture_atlas.height));
         v.uv[1] = 1;
         try vtx.append(v);
 
@@ -6869,69 +7763,128 @@ pub fn debugRenderFontAtlases(rs: RectScale, color: Color) !void {
         try idx.append(@as(u16, @intCast(len + 2)));
 
         const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-        const clipr: ?Rect = if (r.clippedBy(clip_offset)) clip_offset else null;
+        const clipr: ?Rect.Physical = if (r.clippedBy(clip_offset)) clip_offset else null;
 
         cw.backend.drawClippedTriangles(kv.value_ptr.texture_atlas, vtx.items, idx.items, clipr);
 
-        offset += kv.value_ptr.texture_atlas_size.h;
+        offset += @as(f32, @floatFromInt(kv.value_ptr.texture_atlas.height));
     }
 }
 
-/// Create a texture that can be rendered with renderTexture().  pixels is RGBA premultiplied alpha.
+/// Holds a slice of premultiplied alpha (PMA) RGBA pixels
 ///
-/// Remember to destroy the texture at some point, see textureDestroyLater().
+/// To convert non PMA pixels, use `RGBAPixelsPMA.fromRGBA`
+pub const RGBAPixelsPMA = struct {
+    /// Should only ever store RGBA pixels with premultiplied alpha
+    pma: []u8,
+
+    /// Alpha multiplies `pixels` in place
+    pub fn fromRGBA(pixels: []u8) RGBAPixelsPMA {
+        for (0..pixels.len / 4) |ii| {
+            const i = ii * 4;
+            const a = pixels[i + 3];
+            pixels[i + 0] = @intCast(@divTrunc(@as(u16, pixels[i + 0]) * a, 255));
+            pixels[i + 1] = @intCast(@divTrunc(@as(u16, pixels[i + 1]) * a, 255));
+            pixels[i + 2] = @intCast(@divTrunc(@as(u16, pixels[i + 2]) * a, 255));
+        }
+        return .{ .pma = pixels };
+    }
+
+    /// Unapplies the alpha multiplication in place, returning the inner slice
+    pub fn toRGBA(pma_pixels: RGBAPixelsPMA) []u8 {
+        var pixels = pma_pixels.pma;
+        for (0..pixels.len / 4) |ii| {
+            const i = ii * 4;
+            const a = pixels[i + 3];
+            pixels[i + 0] = @intCast(@divTrunc(@as(u16, pixels[i + 0]) * 255, a));
+            pixels[i + 1] = @intCast(@divTrunc(@as(u16, pixels[i + 1]) * 255, a));
+            pixels[i + 2] = @intCast(@divTrunc(@as(u16, pixels[i + 2]) * 255, a));
+        }
+        return pixels;
+    }
+
+    /// Should only be used where it is guaranteed that the pixels are already
+    /// alpha multiplied or have no transparency
+    ///
+    /// Does no modifications of the pixels
+    pub fn cast(pixels: []u8) RGBAPixelsPMA {
+        return .{ .pma = pixels };
+    }
+};
+
+/// Create a texture that can be rendered with `renderTexture`.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn textureCreate(pixels: [*]u8, width: u32, height: u32, interpolation: enums.TextureInterpolation) *anyopaque {
-    return currentWindow().backend.textureCreate(pixels, width, height, interpolation);
+/// Remember to destroy the texture at some point, see `textureDestroyLater`.
+///
+/// Only valid between `Window.begin` and `Window.end`.
+pub fn textureCreate(pixels: RGBAPixelsPMA, width: u32, height: u32, interpolation: enums.TextureInterpolation) Texture {
+    if (pixels.pma.len != width * height * 4) {
+        log.err("Texture was created with an incorrect amount of pixels, expected {d} but got {d} (w: {d}, h: {d})", .{ pixels.pma.len, width * height * 4, width, height });
+    }
+    return currentWindow().backend.textureCreate(pixels.pma.ptr, width, height, interpolation);
 }
 
-/// Create a texture that can be rendered with renderTexture() and drawn to
-/// with renderTarget().  Starts transparent (all zero).
+/// Create a texture that can be rendered with `renderTexture` and drawn to
+/// with `renderTarget`.  Starts transparent (all zero).
 ///
-/// Remember to destroy the texture at some point, see textureDestroyLater().
+/// Remember to destroy the texture at some point, see `textureDestroyLater`.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn textureCreateTarget(width: u32, height: u32, interpolation: enums.TextureInterpolation) !*anyopaque {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn textureCreateTarget(width: u32, height: u32, interpolation: enums.TextureInterpolation) !TextureTarget {
     return try currentWindow().backend.textureCreateTarget(width, height, interpolation);
 }
 
-/// Read pixels from texture created with textureCreateTarget().
+/// Read pixels from texture created with `textureCreateTarget`.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn textureRead(texture: *anyopaque, pixels_out: [*]u8, width: u32, height: u32) !void {
-    try currentWindow().backend.textureRead(texture, pixels_out, width, height);
+/// Returns pixels allocated by arena.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn textureReadTarget(arena: std.mem.Allocator, texture: TextureTarget) !RGBAPixelsPMA {
+    const size: usize = texture.width * texture.height * 4;
+    const pixels = try arena.alloc(u8, size);
+    errdefer arena.free(pixels);
+
+    try currentWindow().backend.textureReadTarget(texture, pixels.ptr);
+
+    return .{ .pma = pixels };
 }
 
-/// Destroy a texture created with textureCreate() or textureCreateTarget() at
-/// the end of the frame.
+/// Convert a target texture to a normal texture.  target is destroyed.
 ///
-/// While backend.textureDestroy() immediately destroys the texture, this
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn textureFromTarget(target: TextureTarget) Texture {
+    return currentWindow().backend.textureFromTarget(target);
+}
+
+/// Destroy a texture created with `textureCreate` at the end of the frame.
+///
+/// While `Backend.textureDestroy` immediately destroys the texture, this
 /// function deferres the destruction until the end of the frame, so it is safe
 /// to use even in a subwindow where rendering is deferred.
 ///
-/// Only valid between dvui.Window.begin() and end().
-pub fn textureDestroyLater(texture: *anyopaque) void {
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn textureDestroyLater(texture: Texture) void {
     currentWindow().texture_trash.append(texture) catch |err| {
         dvui.log.err("textureDestroyLater got {!}\n", .{err});
     };
 }
 
 pub const RenderTarget = struct {
-    texture: ?*anyopaque,
-    offset: Point,
+    texture: ?TextureTarget,
+    offset: Point.Physical,
     rendering: bool = true,
 };
 
-/// Change where dvui renders.  Can pass output from textureCreateTarget() or
+/// Change where dvui renders.  Can pass output from `textureCreateTarget` or
 /// null for the screen.  Returns the previous target/offset.
 ///
 /// offset will be subtracted from all dvui rendering, useful as the point on
 /// the screen the texture will map to.
 ///
-/// Useful for caching expensive renders or to save a render for export.
+/// Useful for caching expensive renders or to save a render for export.  See
+/// `Picture`.
 ///
-/// Only valid between dvui.Window.begin() and end().
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn renderTarget(args: RenderTarget) RenderTarget {
     var cw = currentWindow();
     const ret = cw.render_target;
@@ -6943,11 +7896,13 @@ pub fn renderTarget(args: RenderTarget) RenderTarget {
 pub const RenderTextureOptions = struct {
     rotation: f32 = 0,
     colormod: Color = .{},
-    uv: ?Rect = null,
+    corner_radius: Rect = .{},
+    uv: Rect = .{ .w = 1, .h = 1 },
+    background_color: ?Color = null,
     debug: bool = false,
 };
 
-pub fn renderTexture(tex: *anyopaque, rs: RectScale, opts: RenderTextureOptions) !void {
+pub fn renderTexture(tex: Texture, rs: RectScale, opts: RenderTextureOptions) !void {
     if (rs.s == 0) return;
     if (clipGet().intersect(rs.r).empty()) return;
 
@@ -6961,81 +7916,29 @@ pub fn renderTexture(tex: *anyopaque, rs: RectScale, opts: RenderTextureOptions)
         return;
     }
 
-    const uv: Rect = opts.uv orelse Rect{ .x = 0, .y = 0, .w = 1, .h = 1 };
+    var path: PathArrayList = .init(dvui.currentWindow().arena());
+    defer path.deinit();
 
-    const r = rs.r.offsetNegPoint(cw.render_target.offset);
+    try dvui.pathAddRect(&path, rs.r, opts.corner_radius.scale(rs.s, Rect.Physical));
 
-    var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), 4);
-    defer vtx.deinit();
-    var idx = try std.ArrayList(u16).initCapacity(cw.arena(), 6);
-    defer idx.deinit();
+    var triangles = try pathFillConvexTriangles(path.items, .{ .color = opts.colormod });
+    defer triangles.deinit(cw.arena());
 
-    const x: f32 = if (cw.snap_to_pixels) @round(r.x) else r.x;
-    const y: f32 = if (cw.snap_to_pixels) @round(r.y) else r.y;
+    triangles.uvFromRectuv(rs.r, opts.uv);
+    triangles.rotate(rs.r.center(), opts.rotation);
 
-    if (opts.debug) {
-        log.debug("renderTexture at {d} {d} {d}x{d} uv {}", .{ x, y, r.w, r.h, uv });
+    if (opts.background_color) |bg_col| {
+        var back_tri = try triangles.dupe(cw.arena());
+        defer back_tri.deinit(cw.arena());
+
+        back_tri.color(bg_col);
+        try renderTriangles(back_tri, null);
     }
 
-    const xw = x + r.w;
-    const yh = y + r.h;
-
-    const midx = (x + xw) / 2;
-    const midy = (y + yh) / 2;
-
-    const rot = opts.rotation;
-
-    var v: Vertex = undefined;
-    v.pos.x = x;
-    v.pos.y = y;
-    v.col = opts.colormod.alphaMultiply();
-    v.uv[0] = uv.x;
-    v.uv[1] = uv.y;
-    if (rot != 0) {
-        v.pos.x = midx + (x - midx) * @cos(rot) - (y - midy) * @sin(rot);
-        v.pos.y = midy + (x - midx) * @sin(rot) + (y - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    v.pos.x = xw;
-    v.uv[0] = uv.w;
-    if (rot != 0) {
-        v.pos.x = midx + (xw - midx) * @cos(rot) - (y - midy) * @sin(rot);
-        v.pos.y = midy + (xw - midx) * @sin(rot) + (y - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    v.pos.y = yh;
-    v.uv[1] = uv.h;
-    if (rot != 0) {
-        v.pos.x = midx + (xw - midx) * @cos(rot) - (yh - midy) * @sin(rot);
-        v.pos.y = midy + (xw - midx) * @sin(rot) + (yh - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    v.pos.x = x;
-    v.uv[0] = uv.x;
-    if (rot != 0) {
-        v.pos.x = midx + (x - midx) * @cos(rot) - (yh - midy) * @sin(rot);
-        v.pos.y = midy + (x - midx) * @sin(rot) + (yh - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    // triangles must be counter-clockwise (y going down) to avoid backface culling
-    try idx.append(0);
-    try idx.append(2);
-    try idx.append(1);
-    try idx.append(0);
-    try idx.append(3);
-    try idx.append(2);
-
-    const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-    const clipr: ?Rect = if (r.clippedBy(clip_offset)) clip_offset else null;
-
-    cw.backend.drawClippedTriangles(tex, vtx.items, idx.items, clipr);
+    try renderTriangles(triangles, tex);
 }
 
-pub fn renderIcon(name: []const u8, tvg_bytes: []const u8, rs: RectScale, rotation: f32, colormod: Color) !void {
+pub fn renderIcon(name: []const u8, tvg_bytes: []const u8, rs: RectScale, opts: RenderTextureOptions) !void {
     if (rs.s == 0) return;
     if (clipGet().intersect(rs.r).empty()) return;
 
@@ -7045,7 +7948,7 @@ pub fn renderIcon(name: []const u8, tvg_bytes: []const u8, rs: RectScale, rotati
 
     const tce = iconTexture(name, tvg_bytes, @as(u32, @intFromFloat(ask_height))) catch return;
 
-    try renderTexture(tce.texture, rs, .{ .rotation = rotation, .colormod = colormod });
+    try renderTexture(tce.texture, rs, opts);
 }
 
 pub fn imageTexture(name: []const u8, image_bytes: []const u8) !TextureCacheEntry {
@@ -7071,9 +7974,8 @@ pub fn imageTexture(name: []const u8, image_bytes: []const u8) !TextureCacheEntr
     var pixels: []u8 = undefined;
     pixels.ptr = data;
     pixels.len = @intCast(w * h * 4);
-    Color.alphaMultiplyPixels(pixels);
 
-    const texture = textureCreate(pixels.ptr, @intCast(w), @intCast(h), .linear);
+    const texture = textureCreate(.fromRGBA(pixels), @intCast(w), @intCast(h), .linear);
 
     //std.debug.print("created image texture \"{s}\" size {d}x{d}\n", .{ name, w, h });
     //const usizeh: usize = @intCast(h);
@@ -7090,16 +7992,275 @@ pub fn imageTexture(name: []const u8, image_bytes: []const u8) !TextureCacheEntr
     //    }
     //}
 
-    const entry = TextureCacheEntry{ .texture = texture, .size = .{ .w = @as(f32, @floatFromInt(w)), .h = @as(f32, @floatFromInt(h)) } };
+    const entry = TextureCacheEntry{ .texture = texture };
     try cw.texture_cache.put(hash, entry);
 
     return entry;
 }
 
-pub fn renderImage(name: []const u8, image_bytes: []const u8, rs: RectScale, rotation: f32, colormod: Color) !void {
+pub fn renderImage(name: []const u8, image_bytes: []const u8, rs: RectScale, opts: RenderTextureOptions) !void {
     if (rs.s == 0) return;
     if (clipGet().intersect(rs.r).empty()) return;
 
     const tce = imageTexture(name, image_bytes) catch return;
-    try renderTexture(tce.texture, rs, .{ .rotation = rotation, .colormod = colormod });
+    try renderTexture(tce.texture, rs, opts);
+}
+
+/// Captures dvui drawing to part of the screen in a `Texture`.
+pub const Picture = struct {
+    r: Rect.Physical, // pixels captured
+    texture: dvui.TextureTarget = undefined,
+    target: dvui.RenderTarget = undefined,
+
+    /// Begin recording drawing to the physical pixels in rect (enlarged to pixel boundaries).
+    ///
+    /// Returns null in case of failure (e.g. if backend does not support texture targets, if the passed rect is empty ...).
+    ///
+    /// Only valid between `Window.begin`and `Window.end`.
+    pub fn start(rect: Rect.Physical) ?Picture {
+        if (rect.empty()) {
+            log.err("Picture.start() was called with an empty rect", .{});
+            return null;
+        }
+        var ret: Picture = .{ .r = rect };
+
+        // enlarge texture to pixels boundaries
+        const x_start = @floor(ret.r.x);
+        const x_end = @ceil(ret.r.x + ret.r.w);
+        ret.r.x = x_start;
+        ret.r.w = @round(x_end - x_start);
+
+        const y_start = @floor(ret.r.y);
+        const y_end = @ceil(ret.r.y + ret.r.h);
+        ret.r.y = y_start;
+        ret.r.h = @round(y_end - y_start);
+
+        ret.texture = dvui.textureCreateTarget(@intFromFloat(ret.r.w), @intFromFloat(ret.r.h), .linear) catch return null;
+        ret.target = dvui.renderTarget(.{ .texture = ret.texture, .offset = ret.r.topLeft() });
+
+        return ret;
+    }
+
+    /// Stop recording.
+    pub fn stop(self: *Picture) void {
+        _ = dvui.renderTarget(self.target);
+    }
+
+    /// Encode texture as png.  Call after `stop` before `deinit`.
+    pub fn png(self: *Picture, arena: std.mem.Allocator) ![]u8 {
+        const pma_pixels = try dvui.textureReadTarget(arena, self.texture);
+        const pixels = pma_pixels.toRGBA();
+        defer arena.free(pixels);
+
+        return try dvui.pngEncode(arena, pixels, self.texture.width, self.texture.height, .{});
+    }
+
+    /// Draw recorded texture and destroy it.
+    pub fn deinit(self: *Picture) void {
+        const texture = dvui.textureFromTarget(self.texture); // destroys self.texture
+        dvui.renderTexture(texture, .{ .r = self.r }, .{}) catch {};
+        dvui.textureDestroyLater(texture);
+    }
+};
+
+pub const pngEncodeOptions = struct {
+    /// Physical size of image, pixels per meter added to png pHYs chunk.
+    /// 0 => don't write the pHYs chunk
+    /// null => dvui will use 72 dpi (2834.64 px/m) times `windowNaturalScale`
+    resolution: ?u32 = null,
+};
+
+/// Make a png encoded image from RGBA pixels.
+///
+/// Gives bytes of a png file (allocated by arena).
+pub fn pngEncode(arena: std.mem.Allocator, pixels: []u8, width: u32, height: u32, opts: pngEncodeOptions) ![]u8 {
+    var len: c_int = undefined;
+    const png_bytes = c.stbi_write_png_to_mem(pixels.ptr, @intCast(width * 4), @intCast(width), @intCast(height), 4, &len);
+    defer {
+        if (wasm) {
+            backend.dvui_c_free(png_bytes);
+        } else {
+            c.free(png_bytes);
+        }
+    }
+
+    // 4 bytes: length of data
+    // 4 bytes: "pHYs"
+    // 9 bytes: data (2 4-byte numbers + 1 byte units)
+    // 4 bytes: crc
+    const pHYs_size = 4 + 4 + 9 + 4;
+    var extra: usize = pHYs_size;
+    var p_buf: [pHYs_size]u8 = undefined;
+    var res: u32 = 0;
+    if (opts.resolution) |r| {
+        res = r;
+    } else {
+        res = @intFromFloat(@round(windowNaturalScale() * 72.0 / 0.0254));
+    }
+
+    if (res == 0) {
+        extra = 0;
+    } else {
+        std.mem.writeInt(u32, p_buf[0..][0..4], 9, .big); // length of data
+        @memcpy(p_buf[4..][0..4], "pHYs");
+        std.mem.writeInt(u32, p_buf[8..][0..4], res, .big); // res horizontal
+        std.mem.writeInt(u32, p_buf[12..][0..4], res, .big); // res vertical
+        p_buf[16] = 1; // 1 => pixels/meter
+
+        // crc includes "pHYs" and data
+        std.mem.writeInt(u32, p_buf[17..][0..4], png_crc32(p_buf[4..][0..13]), .big);
+    }
+
+    var ret = try arena.alloc(u8, @as(usize, @intCast(len)) + extra);
+
+    // find byte index of end of IDHR chunk
+    const idhr_data_len: u32 = std.mem.readInt(u32, png_bytes[8..][0..4], .big);
+
+    // 8 bytes PNG magic bytes
+    // 4 bytes length of IDHR data
+    // 4 bytes "IDHR"
+    // IDHR data
+    // 4 bytes IDHR crc
+    const split: u32 = 8 + 4 + 4 + idhr_data_len + 4;
+
+    @memcpy(ret[0..split], png_bytes[0..split]);
+    if (res != 0) {
+        @memcpy(ret[split..][0..extra], &p_buf);
+    }
+    @memcpy(ret[split + extra ..], png_bytes[split..@as(usize, @intCast(len))]);
+
+    return ret;
+}
+
+/// Calculate a PNG crc value.
+///
+/// Code from stb_image_write.h
+pub fn png_crc32(buf: []u8) u32 {
+    // zig fmt: off
+    const crc_table = [256]u32 {
+      0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
+      0x0eDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988, 0x09B64C2B, 0x7EB17CBD, 0xE7B82D07, 0x90BF1D91,
+      0x1DB71064, 0x6AB020F2, 0xF3B97148, 0x84BE41DE, 0x1ADAD47D, 0x6DDDE4EB, 0xF4D4B551, 0x83D385C7,
+      0x136C9856, 0x646BA8C0, 0xFD62F97A, 0x8A65C9EC, 0x14015C4F, 0x63066CD9, 0xFA0F3D63, 0x8D080DF5,
+      0x3B6E20C8, 0x4C69105E, 0xD56041E4, 0xA2677172, 0x3C03E4D1, 0x4B04D447, 0xD20D85FD, 0xA50AB56B,
+      0x35B5A8FA, 0x42B2986C, 0xDBBBC9D6, 0xACBCF940, 0x32D86CE3, 0x45DF5C75, 0xDCD60DCF, 0xABD13D59,
+      0x26D930AC, 0x51DE003A, 0xC8D75180, 0xBFD06116, 0x21B4F4B5, 0x56B3C423, 0xCFBA9599, 0xB8BDA50F,
+      0x2802B89E, 0x5F058808, 0xC60CD9B2, 0xB10BE924, 0x2F6F7C87, 0x58684C11, 0xC1611DAB, 0xB6662D3D,
+      0x76DC4190, 0x01DB7106, 0x98D220BC, 0xEFD5102A, 0x71B18589, 0x06B6B51F, 0x9FBFE4A5, 0xE8B8D433,
+      0x7807C9A2, 0x0F00F934, 0x9609A88E, 0xE10E9818, 0x7F6A0DBB, 0x086D3D2D, 0x91646C97, 0xE6635C01,
+      0x6B6B51F4, 0x1C6C6162, 0x856530D8, 0xF262004E, 0x6C0695ED, 0x1B01A57B, 0x8208F4C1, 0xF50FC457,
+      0x65B0D9C6, 0x12B7E950, 0x8BBEB8EA, 0xFCB9887C, 0x62DD1DDF, 0x15DA2D49, 0x8CD37CF3, 0xFBD44C65,
+      0x4DB26158, 0x3AB551CE, 0xA3BC0074, 0xD4BB30E2, 0x4ADFA541, 0x3DD895D7, 0xA4D1C46D, 0xD3D6F4FB,
+      0x4369E96A, 0x346ED9FC, 0xAD678846, 0xDA60B8D0, 0x44042D73, 0x33031DE5, 0xAA0A4C5F, 0xDD0D7CC9,
+      0x5005713C, 0x270241AA, 0xBE0B1010, 0xC90C2086, 0x5768B525, 0x206F85B3, 0xB966D409, 0xCE61E49F,
+      0x5EDEF90E, 0x29D9C998, 0xB0D09822, 0xC7D7A8B4, 0x59B33D17, 0x2EB40D81, 0xB7BD5C3B, 0xC0BA6CAD,
+      0xEDB88320, 0x9ABFB3B6, 0x03B6E20C, 0x74B1D29A, 0xEAD54739, 0x9DD277AF, 0x04DB2615, 0x73DC1683,
+      0xE3630B12, 0x94643B84, 0x0D6D6A3E, 0x7A6A5AA8, 0xE40ECF0B, 0x9309FF9D, 0x0A00AE27, 0x7D079EB1,
+      0xF00F9344, 0x8708A3D2, 0x1E01F268, 0x6906C2FE, 0xF762575D, 0x806567CB, 0x196C3671, 0x6E6B06E7,
+      0xFED41B76, 0x89D32BE0, 0x10DA7A5A, 0x67DD4ACC, 0xF9B9DF6F, 0x8EBEEFF9, 0x17B7BE43, 0x60B08ED5,
+      0xD6D6A3E8, 0xA1D1937E, 0x38D8C2C4, 0x4FDFF252, 0xD1BB67F1, 0xA6BC5767, 0x3FB506DD, 0x48B2364B,
+      0xD80D2BDA, 0xAF0A1B4C, 0x36034AF6, 0x41047A60, 0xDF60EFC3, 0xA867DF55, 0x316E8EEF, 0x4669BE79,
+      0xCB61B38C, 0xBC66831A, 0x256FD2A0, 0x5268E236, 0xCC0C7795, 0xBB0B4703, 0x220216B9, 0x5505262F,
+      0xC5BA3BBE, 0xB2BD0B28, 0x2BB45A92, 0x5CB36A04, 0xC2D7FFA7, 0xB5D0CF31, 0x2CD99E8B, 0x5BDEAE1D,
+      0x9B64C2B0, 0xEC63F226, 0x756AA39C, 0x026D930A, 0x9C0906A9, 0xEB0E363F, 0x72076785, 0x05005713,
+      0x95BF4A82, 0xE2B87A14, 0x7BB12BAE, 0x0CB61B38, 0x92D28E9B, 0xE5D5BE0D, 0x7CDCEFB7, 0x0BDBDF21,
+      0x86D3D2D4, 0xF1D4E242, 0x68DDB3F8, 0x1FDA836E, 0x81BE16CD, 0xF6B9265B, 0x6FB077E1, 0x18B74777,
+      0x88085AE6, 0xFF0F6A70, 0x66063BCA, 0x11010B5C, 0x8F659EFF, 0xF862AE69, 0x616BFFD3, 0x166CCF45,
+      0xA00AE278, 0xD70DD2EE, 0x4E048354, 0x3903B3C2, 0xA7672661, 0xD06016F7, 0x4969474D, 0x3E6E77DB,
+      0xAED16A4A, 0xD9D65ADC, 0x40DF0B66, 0x37D83BF0, 0xA9BCAE53, 0xDEBB9EC5, 0x47B2CF7F, 0x30B5FFE9,
+      0xBDBDF21C, 0xCABAC28A, 0x53B39330, 0x24B4A3A6, 0xBAD03605, 0xCDD70693, 0x54DE5729, 0x23D967BF,
+      0xB3667A2E, 0xC4614AB8, 0x5D681B02, 0x2A6F2B94, 0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
+    };
+    // zig fmt: on
+
+    var crc: u32 = ~@as(u32, 0);
+    for (buf) |ch| {
+        crc = (crc >> 8) ^ crc_table[ch ^ (crc & 0xff)];
+    }
+    return ~crc;
+}
+
+pub fn plot(src: std.builtin.SourceLocation, plot_opts: PlotWidget.InitOptions, opts: Options) !*PlotWidget {
+    var ret = try currentWindow().arena().create(PlotWidget);
+    ret.* = PlotWidget.init(src, plot_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn plotXY(src: std.builtin.SourceLocation, plot_opts: PlotWidget.InitOptions, thick: f32, xs: []const f64, ys: []const f64, opts: Options) !void {
+    const defaults: Options = .{ .padding = .{} };
+    var p = try dvui.plot(src, plot_opts, defaults.override(opts));
+
+    var s1 = p.line();
+    for (xs, ys) |x, y| {
+        try s1.point(x, y);
+    }
+
+    try s1.stroke(thick, opts.color(.accent));
+
+    s1.deinit();
+    p.deinit();
+}
+
+/// Helper to layout widgets stacked vertically.
+///
+/// If there is a widget with .expand = .vertical, it takes up the remaining
+/// space and it is an error to have any widget after.
+///
+/// Widgets with .gravity_y not zero might overlap other widgets.
+pub const BasicLayout = struct {
+    ypos: f32 = 0,
+    seen_expanded: bool = false,
+    min_size_children: Size = .{},
+
+    pub fn rectFor(self: *BasicLayout, contentRect: Rect, id: WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+        if (self.seen_expanded) {
+            // A single vertically expanded child can take the rest of the
+            // space, but it should be the last (usually only) child.
+            //
+            // Here we have a child after an expanded one, so it will get no space.
+            //
+            // If you want that to work, wrap the children in a vertical box.
+            const cw = dvui.currentWindow();
+            cw.debug_widget_id = id;
+            dvui.log.err("{s}:{d} rectFor() got child {x} after expanded child", .{ @src().file, @src().line, id });
+            var wd = dvui.parentGet().data();
+            while (true) : (wd = wd.parent.data()) {
+                dvui.log.err("  {s}:{d} {s} {x}{s}", .{
+                    wd.src.file,
+                    wd.src.line,
+                    wd.options.name orelse "???",
+                    wd.id,
+                    if (wd.id == cw.wd.id) "\n" else "",
+                });
+                if (wd.id == cw.wd.id) {
+                    break;
+                }
+            }
+        } else if (e.isVertical()) {
+            self.seen_expanded = true;
+        }
+
+        var r = contentRect;
+        r.y = self.ypos;
+        r.h = @max(0, r.h - r.y);
+        const ret = dvui.placeIn(r, min_size, e, g);
+        self.ypos += ret.h;
+        return ret;
+    }
+
+    pub fn minSizeForChild(self: *BasicLayout, s: Size) Size {
+        // add heights
+        self.min_size_children.h += s.h;
+
+        // max of widths
+        self.min_size_children.w = @max(self.min_size_children.w, s.w);
+
+        return self.min_size_children;
+    }
+};
+
+test {
+    //std.debug.print("DVUI test\n", .{});
+    std.testing.refAllDecls(@This());
 }

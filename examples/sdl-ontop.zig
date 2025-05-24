@@ -1,9 +1,9 @@
 const std = @import("std");
 const dvui = @import("dvui");
-comptime {
-    std.debug.assert(dvui.backend_kind == .sdl);
-}
 const SDLBackend = dvui.backend;
+comptime {
+    std.debug.assert(@hasDecl(SDLBackend, "SDLBackend"));
+}
 
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
@@ -118,7 +118,7 @@ fn dvui_floating_stuff() !void {
 
     try dvui.windowHeader("Floating Window", "", null);
 
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .{ .name = .fill_window } });
+    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
     defer scroll.deinit();
 
     var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });

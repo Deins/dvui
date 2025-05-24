@@ -13,21 +13,21 @@ const WidgetData = dvui.WidgetData;
 const ContextWidget = @This();
 
 pub const InitOptions = struct {
-    /// Screen space pixel rect where right-click triggers the context menu
-    rect: Rect,
+    /// physical rect where right-click triggers the context menu
+    rect: Rect.Physical,
 };
 
 wd: WidgetData = undefined,
 init_options: InitOptions = undefined,
 
-winId: u32 = undefined,
+winId: dvui.WidgetId = undefined,
 focused: bool = false,
-activePt: Point = Point{},
+activePt: Point.Natural = .{},
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Options) ContextWidget {
     var self = ContextWidget{};
     const defaults = Options{ .name = "Context" };
-    self.wd = WidgetData.init(src, .{}, defaults.override(opts).override(.{ .rect = dvui.parentGet().data().rectScale().rectFromScreen(init_opts.rect) }));
+    self.wd = WidgetData.init(src, .{}, defaults.override(opts).override(.{ .rect = dvui.parentGet().data().rectScale().rectFromPhysical(init_opts.rect) }));
     self.init_options = init_opts;
     self.winId = dvui.subwindowCurrentId();
     if (dvui.focusedWidgetIdInCurrentSubwindow()) |fid| {
@@ -36,7 +36,7 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Optio
         }
     }
 
-    if (dvui.dataGet(null, self.wd.id, "_activePt", Point)) |a| {
+    if (dvui.dataGet(null, self.wd.id, "_activePt", Point.Natural)) |a| {
         self.activePt = a;
     }
 
@@ -49,7 +49,7 @@ pub fn install(self: *ContextWidget) !void {
     try self.wd.borderAndBackground(.{});
 }
 
-pub fn activePoint(self: *ContextWidget) ?Point {
+pub fn activePoint(self: *ContextWidget) ?Point.Natural {
     if (self.focused) {
         return self.activePt;
     }
@@ -65,7 +65,7 @@ pub fn data(self: *ContextWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *ContextWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+pub fn rectFor(self: *ContextWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
     dvui.log.debug("{s}:{d} ContextWidget should not have normal child widgets, only menu stuff", .{ self.wd.src.file, self.wd.src.line });
     return dvui.placeIn(self.wd.contentRect().justSize(), min_size, e, g);
@@ -98,15 +98,15 @@ pub fn processEvent(self: *ContextWidget, e: *Event, bubbling: bool) void {
                 // caught by the containing window cleanup and cause us
                 // to lose the focus we are about to get from the right
                 // press below
-                e.handled = true;
+                e.handle(@src(), self.data());
             } else if (me.action == .press and me.button == .right) {
-                e.handled = true;
+                e.handle(@src(), self.data());
 
                 dvui.focusWidget(self.wd.id, null, e.num);
                 self.focused = true;
 
                 // scale the point back to natural so we can use it in Popup
-                self.activePt = me.p.scale(1 / dvui.windowNaturalScale());
+                self.activePt = me.p.toNatural();
 
                 // offset just enough so when Popup first appears nothing is highlighted
                 self.activePt.x += 1;
@@ -136,4 +136,8 @@ pub fn deinit(self: *ContextWidget) void {
     //self.wd.minSizeReportToParent();
 
     dvui.parentReset(self.wd.id, self.wd.parent);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

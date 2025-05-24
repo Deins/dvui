@@ -1,9 +1,9 @@
 const std = @import("std");
 const dvui = @import("dvui");
-comptime {
-    std.debug.assert(dvui.backend_kind == .raylib);
-}
 const RaylibBackend = dvui.backend;
+comptime {
+    std.debug.assert(@hasDecl(RaylibBackend, "RaylibBackend"));
+}
 const ray = RaylibBackend.c;
 
 const window_icon_png = @embedFile("zig-favicon.png");
@@ -130,7 +130,7 @@ fn dvuiStuff() !void {
 
     try dvui.windowHeader("Floating Window", "", null);
 
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .{ .name = .fill_window } });
+    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
     defer scroll.deinit();
 
     var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });

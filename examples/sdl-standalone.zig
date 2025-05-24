@@ -1,17 +1,17 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const dvui = @import("dvui");
-comptime {
-    std.debug.assert(dvui.backend_kind == .sdl);
-}
 const Backend = dvui.backend;
+comptime {
+    std.debug.assert(@hasDecl(Backend, "SDLBackend"));
+}
 
 const window_icon_png = @embedFile("zig-favicon.png");
 
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
 
-const vsync = false;
+const vsync = true;
 const show_demo = true;
 var scale_val: f32 = 1.0;
 
@@ -45,6 +45,8 @@ pub fn main() !void {
     });
     g_backend = backend;
     defer backend.deinit();
+
+    _ = Backend.c.SDL_EnableScreenSaver();
 
     // init dvui Window (maps onto a single OS window)
     var win = try dvui.Window.init(@src(), gpa, backend.backend(), .{});
@@ -88,7 +90,7 @@ pub fn main() !void {
         // Example of how to show a dialog from another thread (outside of win.begin/win.end)
         if (show_dialog_outside_frame) {
             show_dialog_outside_frame = false;
-            try dvui.dialog(@src(), .{ .window = &win, .modal = false, .title = "Dialog from Outside", .message = "This is a non modal dialog that was created outside win.begin()/win.end(), usually from another thread." });
+            try dvui.dialog(@src(), .{}, .{ .window = &win, .modal = false, .title = "Dialog from Outside", .message = "This is a non modal dialog that was created outside win.begin()/win.end(), usually from another thread." });
         }
     }
 }
@@ -102,7 +104,7 @@ fn gui_frame() !void {
         defer m.deinit();
 
         if (try dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), dvui.Rect.fromPoint(dvui.Point{ .x = r.x, .y = r.y + r.h }), .{});
+            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
             defer fw.deinit();
 
             if (try dvui.menuItemLabel(@src(), "Close Menu", .{}, .{}) != null) {
@@ -111,7 +113,7 @@ fn gui_frame() !void {
         }
 
         if (try dvui.menuItemLabel(@src(), "Edit", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), dvui.Rect.fromPoint(dvui.Point{ .x = r.x, .y = r.y + r.h }), .{});
+            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
             defer fw.deinit();
             _ = try dvui.menuItemLabel(@src(), "Dummy", .{}, .{ .expand = .horizontal });
             _ = try dvui.menuItemLabel(@src(), "Dummy Long", .{}, .{ .expand = .horizontal });
@@ -119,7 +121,7 @@ fn gui_frame() !void {
         }
     }
 
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .{ .name = .fill_window } });
+    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
     defer scroll.deinit();
 
     var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
@@ -159,7 +161,7 @@ fn gui_frame() !void {
     }
 
     {
-        var scaler = try dvui.scale(@src(), scale_val, .{ .expand = .horizontal });
+        var scaler = try dvui.scale(@src(), .{ .scale = &scale_val }, .{ .expand = .horizontal });
         defer scaler.deinit();
 
         {

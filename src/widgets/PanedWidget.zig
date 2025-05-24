@@ -27,7 +27,7 @@ split_ratio: f32 = undefined,
 dir: enums.Direction = undefined,
 collapsed_size: f32 = 0,
 hovered: bool = false,
-prevClip: Rect = Rect{},
+prevClip: Rect.Physical = .{},
 collapsed_state: bool = false,
 collapsing: bool = false,
 first_side: bool = true,
@@ -83,7 +83,7 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOptions, opts: Optio
     }
 
     if (dvui.animationGet(self.wd.id, "_split_ratio")) |a| {
-        self.split_ratio = a.lerp();
+        self.split_ratio = a.value();
 
         if (self.collapsing and a.done()) {
             self.collapsing = false;
@@ -139,14 +139,26 @@ pub fn draw(self: *PanedWidget) !void {
                     r.w = width;
                 },
             }
-            try dvui.pathAddRect(r, Rect.all(thick));
-            try dvui.pathFillConvex(self.wd.options.color(.text).transparent(0.5));
+            try r.fill(.all(thick), .{ .color = self.wd.options.color(.text).opacity(0.5) });
         }
     }
 }
 
 pub fn collapsed(self: *PanedWidget) bool {
     return self.collapsed_state;
+}
+
+pub fn showFirst(self: *PanedWidget) bool {
+    const ret = self.split_ratio > 0;
+
+    // If we don't show the first side, then record that for rectFor
+    if (!ret) self.first_side = false;
+
+    return ret;
+}
+
+pub fn showSecond(self: *PanedWidget) bool {
+    return self.split_ratio < 1.0;
 }
 
 pub fn animateSplit(self: *PanedWidget, end_val: f32) void {
@@ -161,7 +173,7 @@ pub fn data(self: *PanedWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *PanedWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) dvui.Rect {
+pub fn rectFor(self: *PanedWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) dvui.Rect {
     _ = id;
     var r = self.wd.contentRect().justSize();
     if (self.first_side) {
@@ -178,8 +190,8 @@ pub fn rectFor(self: *PanedWidget, id: u32, min_size: Size, e: Options.Expand, g
             }
         } else {
             switch (self.dir) {
-                .horizontal => r.w = r.w * self.split_ratio - handle_size / 2,
-                .vertical => r.h = r.h * self.split_ratio - handle_size / 2,
+                .horizontal => r.w = @max(0, r.w * self.split_ratio - handle_size / 2),
+                .vertical => r.h = @max(0, r.h * self.split_ratio - handle_size / 2),
             }
         }
         return dvui.placeIn(r, min_size, e, g);
@@ -201,13 +213,13 @@ pub fn rectFor(self: *PanedWidget, id: u32, min_size: Size, e: Options.Expand, g
         } else {
             switch (self.dir) {
                 .horizontal => {
-                    const first = r.w * self.split_ratio - handle_size / 2;
-                    r.w -= first + handle_size;
+                    const first = @max(0, r.w * self.split_ratio - handle_size / 2);
+                    r.w = @max(0, r.w - first - handle_size);
                     r.x += first + handle_size;
                 },
                 .vertical => {
-                    const first = r.h * self.split_ratio - handle_size / 2;
-                    r.h -= first + handle_size;
+                    const first = @max(0, r.h * self.split_ratio - handle_size / 2);
+                    r.h = @max(0, r.h - first - handle_size);
                     r.y += first + handle_size;
                 },
             }
@@ -247,17 +259,17 @@ pub fn processEvent(self: *PanedWidget, e: *Event, bubbling: bool) void {
         if (dvui.captured(self.wd.id) or @abs(mouse - target) < (5 * rs.s)) {
             self.hovered = true;
             if (e.evt.mouse.action == .press and e.evt.mouse.button.pointer()) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 // capture and start drag
-                dvui.captureMouse(self.wd.id);
+                dvui.captureMouse(self.data());
                 dvui.dragPreStart(e.evt.mouse.p, .{ .cursor = cursor });
             } else if (e.evt.mouse.action == .release and e.evt.mouse.button.pointer()) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 // stop possible drag and capture
                 dvui.captureMouse(null);
                 dvui.dragEnd();
             } else if (e.evt.mouse.action == .motion and dvui.captured(self.wd.id)) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 // move if dragging
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
                     _ = dps;
@@ -273,7 +285,6 @@ pub fn processEvent(self: *PanedWidget, e: *Event, bubbling: bool) void {
                     self.split_ratio = @max(0.0, @min(1.0, self.split_ratio));
                 }
             } else if (e.evt.mouse.action == .position) {
-                e.handled = true;
                 dvui.cursorSet(cursor);
             }
         }
@@ -292,4 +303,8 @@ pub fn deinit(self: *PanedWidget) void {
     self.wd.minSizeSetAndRefresh();
     self.wd.minSizeReportToParent();
     dvui.parentReset(self.wd.id, self.wd.parent);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

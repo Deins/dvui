@@ -103,7 +103,7 @@ corners_min_size: [4]?Size = [_]?Size{null} ** 4,
 corners_last_seen: ?u8 = null,
 insert_pt: Point = Point{},
 current_line_height: f32 = 0.0,
-prevClip: Rect = Rect{},
+prevClip: Rect.Physical = .{},
 break_lines: bool = undefined,
 current_line_width: f32 = 0.0, // width of lines if break_lines was false
 touch_edit_just_focused: bool = undefined,
@@ -283,12 +283,12 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             var cursor = self.sel_start_r;
             cursor.x -= 1;
             cursor.w += 1;
-            const visible = !dvui.clipGet().intersect(rs.rectToScreen(cursor)).empty();
+            const visible = !dvui.clipGet().intersect(rs.rectToPhysical(cursor)).empty();
 
             var rect = self.sel_start_r;
             rect.y += rect.h; // move to below the line
             const srs = self.screenRectScale(rect);
-            rect = dvui.windowRectScale().rectFromScreen(srs.r);
+            rect = dvui.windowRectScale().rectFromPhysical(srs.r);
             rect.x -= size;
             rect.w = size;
             rect.h = size;
@@ -296,7 +296,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             var fc = dvui.FloatingWidget.init(@src(), .{ .rect = rect });
             try fc.install();
 
-            var offset: Point = dvui.dataGet(null, fc.wd.id, "_offset", Point) orelse .{};
+            var offset: Point.Physical = dvui.dataGet(null, fc.wd.id, "_offset", Point.Physical) orelse .{};
 
             const fcrs = fc.wd.rectScale();
             const evts = dvui.events();
@@ -307,7 +307,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
                 if (e.evt == .mouse) {
                     const me = e.evt.mouse;
                     if (me.action == .press and me.button.touch()) {
-                        dvui.captureMouse(fc.wd.id);
+                        dvui.captureMouse(fc.data());
                         self.te_show_context_menu = false;
                         offset = fcrs.r.topRight().diff(me.p);
 
@@ -318,7 +318,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
                         dvui.dragEnd();
                     } else if (me.action == .motion and dvui.captured(fc.wd.id)) {
                         const corner = me.p.plus(offset);
-                        self.sel_pts[0] = self.wd.contentRectScale().pointFromScreen(corner);
+                        self.sel_pts[0] = self.wd.contentRectScale().pointFromPhysical(corner);
                         self.sel_pts[1] = self.sel_end_r.topLeft().plus(.{ .y = self.sel_end_r.h / 2 });
 
                         self.sel_pts[0].?.y = @min(self.sel_pts[0].?.y, self.sel_pts[1].?.y);
@@ -334,13 +334,14 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             }
 
             if (visible) {
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x + fcrs.r.w, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathFillConvex(dvui.themeGet().color_fill_control);
+                var path: dvui.PathArrayList = .init(dvui.currentWindow().arena());
+                defer path.deinit();
 
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x + fcrs.r.w, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathStroke(true, 1.0, .none, self.wd.options.color(.border));
+                try path.append(.{ .x = fcrs.r.x + fcrs.r.w, .y = fcrs.r.y });
+                try dvui.pathAddArc(&path, .{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
+
+                try dvui.pathFillConvex(path.items, .{ .color = dvui.themeGet().color_fill_control, .blur = 0.5 });
+                try dvui.pathStroke(path.items, .{ .thickness = 1.0 * fcrs.s, .color = self.wd.options.color(.border), .closed = true });
             }
 
             dvui.dataSet(null, fc.wd.id, "_offset", offset);
@@ -354,19 +355,19 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             var cursor = self.sel_end_r;
             cursor.x -= 1;
             cursor.w += 1;
-            const visible = !dvui.clipGet().intersect(rs.rectToScreen(cursor)).empty();
+            const visible = !dvui.clipGet().intersect(rs.rectToPhysical(cursor)).empty();
 
             var rect = self.sel_end_r;
             rect.y += rect.h; // move to below the line
             const srs = self.screenRectScale(rect);
-            rect = dvui.windowRectScale().rectFromScreen(srs.r);
+            rect = dvui.windowRectScale().rectFromPhysical(srs.r);
             rect.w = size;
             rect.h = size;
 
             var fc = dvui.FloatingWidget.init(@src(), .{ .rect = rect });
             try fc.install();
 
-            var offset: Point = dvui.dataGet(null, fc.wd.id, "_offset", Point) orelse .{};
+            var offset: Point.Physical = dvui.dataGet(null, fc.wd.id, "_offset", Point.Physical) orelse .{};
 
             const fcrs = fc.wd.rectScale();
             const evts = dvui.events();
@@ -377,7 +378,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
                 if (e.evt == .mouse) {
                     const me = e.evt.mouse;
                     if (me.action == .press and me.button.touch()) {
-                        dvui.captureMouse(fc.wd.id);
+                        dvui.captureMouse(fc.data());
                         self.te_show_context_menu = false;
                         offset = fcrs.r.topLeft().diff(me.p);
 
@@ -389,7 +390,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
                     } else if (me.action == .motion and dvui.captured(fc.wd.id)) {
                         const corner = me.p.plus(offset);
                         self.sel_pts[0] = self.sel_start_r.topLeft().plus(.{ .y = self.sel_start_r.h / 2 });
-                        self.sel_pts[1] = self.wd.contentRectScale().pointFromScreen(corner);
+                        self.sel_pts[1] = self.wd.contentRectScale().pointFromPhysical(corner);
 
                         self.sel_pts[1].?.y = @max(self.sel_pts[0].?.y, self.sel_pts[1].?.y);
 
@@ -404,13 +405,14 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             }
 
             if (visible) {
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathFillConvex(dvui.themeGet().color_fill_control);
+                var path: dvui.PathArrayList = .init(dvui.currentWindow().arena());
+                defer path.deinit();
 
-                try dvui.pathAddPoint(.{ .x = fcrs.r.x, .y = fcrs.r.y });
-                try dvui.pathAddArc(.{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
-                try dvui.pathStroke(true, 1.0, .none, self.wd.options.color(.border));
+                try path.append(.{ .x = fcrs.r.x, .y = fcrs.r.y });
+                try dvui.pathAddArc(&path, .{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
+
+                try dvui.pathFillConvex(path.items, .{ .color = dvui.themeGet().color_fill_control, .blur = 0.5 });
+                try dvui.pathStroke(path.items, .{ .thickness = 1.0 * fcrs.s, .color = self.wd.options.color(.border), .closed = true });
             }
 
             dvui.dataSet(null, fc.wd.id, "_offset", offset);
@@ -426,11 +428,34 @@ pub fn format(self: *TextLayoutWidget, comptime fmt: []const u8, args: anytype, 
 }
 
 pub fn addText(self: *TextLayoutWidget, text: []const u8, opts: Options) !void {
-    _ = try self.addTextEx(text, false, opts);
+    _ = try self.addTextEx(text, .none, opts);
 }
 
 pub fn addTextClick(self: *TextLayoutWidget, text: []const u8, opts: Options) !bool {
-    return try self.addTextEx(text, true, opts);
+    return try self.addTextEx(text, .click, opts);
+}
+
+pub fn addTextHover(self: *TextLayoutWidget, text: []const u8, opts: Options) !bool {
+    return try self.addTextEx(text, .hover, opts);
+}
+
+pub fn addTextTooltip(self: *TextLayoutWidget, src: std.builtin.SourceLocation, text: []const u8, tooltip: []const u8, opts: Options) !void {
+    var tt: dvui.FloatingTooltipWidget = .init(src, .{
+        .active_rect = .{},
+        .position = .sticky,
+    }, .{ .id_extra = opts.idExtra() });
+
+    if (try self.addTextHover(text, opts)) {
+        tt.init_options.active_rect = dvui.windowRectPixels();
+    }
+
+    if (try tt.shown()) {
+        var tl = try dvui.textLayout(@src(), .{}, .{ .background = false });
+        try tl.addText(tooltip, .{});
+        tl.deinit();
+    }
+
+    tt.deinit();
 }
 
 // Helper to addTextEx
@@ -445,7 +470,7 @@ fn findPoint(p: Point, r: Rect, bytes_seen: usize, txt: []const u8, options: Opt
         // found it - p is in this rect
         const how_far = p.x - r.x;
         var pt_end: usize = undefined;
-        _ = try options.fontGet().textSizeEx(txt, how_far, &pt_end, .nearest);
+        _ = options.fontGet().textSizeEx(txt, how_far, &pt_end, .nearest);
         return .{ .byte = bytes_seen + pt_end, .affinity = if (pt_end == txt.len) .before else .after };
     }
 
@@ -933,8 +958,14 @@ fn cursorSeen(self: *TextLayoutWidget) void {
     }
 }
 
-fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: Options) !bool {
-    var clicked = false;
+const AddTextExAction = enum {
+    none,
+    click,
+    hover,
+};
+
+fn addTextEx(self: *TextLayoutWidget, text: []const u8, action: AddTextExAction, opts: Options) !bool {
+    var ret = false;
 
     const options = self.wd.options.override(opts);
     const msize = options.fontGet().sizeM(1, 1);
@@ -993,12 +1024,12 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
         var end: usize = undefined;
 
         // get slice of text that fits within width or ends with newline
-        var s = try options.fontGet().textSizeEx(txt, if (self.break_lines) width else null, &end, .before);
+        var s = options.fontGet().textSizeEx(txt, if (self.break_lines) width else null, &end, .before);
 
         // ensure we always get at least 1 codepoint so we make progress
         if (end == 0) {
             end = std.unicode.utf8ByteSequenceLength(txt[0]) catch 1;
-            s = try options.fontGet().textSize(txt[0..end]);
+            s = options.fontGet().textSize(txt[0..end]);
         }
 
         const newline = (txt[end - 1] == '\n');
@@ -1016,7 +1047,7 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
                 const spaceIdx = std.mem.lastIndexOfLinear(u8, txt[0 .. end + 1], " ");
                 if (spaceIdx) |si| {
                     end = si + 1;
-                    s = try options.fontGet().textSize(txt[0..end]);
+                    s = options.fontGet().textSize(txt[0..end]);
                     break :blk; // this part will fit
                 }
 
@@ -1056,19 +1087,25 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
             self.selection.end += 1;
         }
 
-        if (clickable) {
+        if (action != .none) {
             if (self.cursor_pt) |p| {
                 const rs = Rect{ .x = self.insert_pt.x, .y = self.insert_pt.y, .w = s.w, .h = s.h };
                 if (p.x > rs.x and p.x < (rs.x + rs.w) and p.y > rs.y and p.y < (rs.y + rs.h)) {
                     // point is in this text
-                    dvui.cursorSet(.hand);
+                    if (action == .click) {
+                        dvui.cursorSet(.hand);
+                    } else if (action == .hover) {
+                        ret = true;
+                    }
                 }
             }
 
             if (self.click_pt) |p| {
                 const rs = Rect{ .x = self.insert_pt.x, .y = self.insert_pt.y, .w = s.w, .h = s.h };
                 if (p.x > rs.x and p.x < (rs.x + rs.w) and p.y > rs.y and p.y < (rs.y + rs.h)) {
-                    clicked = true;
+                    if (action == .click) {
+                        ret = true;
+                    }
                 }
             }
         }
@@ -1090,7 +1127,7 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
                         // point is in this text
                         const how_far = p.x - rs.x;
                         var pt_end: usize = undefined;
-                        _ = try options.fontGet().textSizeEx(txt, how_far, &pt_end, .nearest);
+                        _ = options.fontGet().textSizeEx(txt, how_far, &pt_end, .nearest);
                         sel_bytes[i] = self.bytes_seen + pt_end;
                         self.sel_pts[i] = null;
                     } else {
@@ -1124,12 +1161,12 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
         // record screen position of selection for touch editing (use s for
         // height in case we are calling textSize with an empty slice)
         if (self.selection.start >= self.bytes_seen and self.selection.start <= self.bytes_seen + end) {
-            const start_off = try options.fontGet().textSize(txt[0..self.selection.start -| self.bytes_seen]);
+            const start_off = options.fontGet().textSize(txt[0..self.selection.start -| self.bytes_seen]);
             self.sel_start_r_new = .{ .x = self.insert_pt.x + start_off.w, .y = self.insert_pt.y, .w = 1, .h = s.h };
         }
 
         if (self.selection.end >= self.bytes_seen and self.selection.end <= self.bytes_seen + end) {
-            const end_off = try options.fontGet().textSize(txt[0..self.selection.end -| self.bytes_seen]);
+            const end_off = options.fontGet().textSize(txt[0..self.selection.end -| self.bytes_seen]);
             self.sel_end_r_new = .{ .x = self.insert_pt.x + end_off.w, .y = self.insert_pt.y, .w = 1, .h = s.h };
         }
 
@@ -1137,7 +1174,7 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
             std.debug.assert(self.selection.cursor >= self.bytes_seen);
             const cursor_offset = self.selection.cursor - self.bytes_seen;
             const text_to_cursor = txt[0..cursor_offset];
-            const size = try options.fontGet().textSize(text_to_cursor);
+            const size = options.fontGet().textSize(text_to_cursor);
             self.cursor_rect = Rect{ .x = self.insert_pt.x + size.w, .y = self.insert_pt.y, .w = 1, .h = s.h };
 
             self.selMoveText(text_to_cursor, self.bytes_seen);
@@ -1149,7 +1186,18 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
 
         const rs = self.screenRectScale(Rect{ .x = self.insert_pt.x, .y = self.insert_pt.y, .w = width, .h = @max(0, self.wd.contentRect().h - self.insert_pt.y) });
         //std.debug.print("renderText: {} {s}\n", .{ rs.r, txt[0..end] });
-        const rtxt = if (newline) txt[0 .. end - 1] else txt[0..end];
+        var rtxt = if (newline) txt[0 .. end - 1] else txt[0..end];
+
+        // If the newline is part of the selection, then render it as a
+        // selected space.  This matches Chrome's behavior, although this is
+        // not a universal - Firefox doesn't do this.
+        if (newline and
+            (self.selection.start -| self.bytes_seen -| rtxt.len) == 0 and
+            (self.selection.end -| self.bytes_seen -| rtxt.len) > 0)
+        {
+            rtxt = try std.fmt.allocPrint(dvui.currentWindow().arena(), "{s} ", .{rtxt});
+        }
+
         try dvui.renderText(.{
             .font = options.fontGet(),
             .text = rtxt,
@@ -1245,14 +1293,14 @@ fn addTextEx(self: *TextLayoutWidget, text: []const u8, clickable: bool, opts: O
         }
     }
 
-    if (clicked) {
+    if (action == .click and ret) {
         // we can only click when not in touch editing, so that click must have
         // transitioned us into touch editing, but we don't want to transition
         // if the click happened on clickable text
         self.touch_editing = false;
     }
 
-    return clicked;
+    return ret;
 }
 
 pub fn addTextDone(self: *TextLayoutWidget, opts: Options) !void {
@@ -1347,8 +1395,7 @@ pub fn touchEditing(self: *TextLayoutWidget) !?*FloatingWidget {
     if (self.touch_editing and self.te_show_context_menu and self.focus_at_start and self.wd.visible()) {
         self.te_floating = dvui.FloatingWidget.init(@src(), .{});
 
-        const r = dvui.clipGet().offsetNeg(dvui.windowRectPixels()).scale(1.0 / dvui.windowNaturalScale());
-
+        const r = dvui.windowRectScale().rectFromPhysical(dvui.clipGet());
         if (dvui.minSizeGet(self.te_floating.data().id)) |_| {
             const ms = dvui.minSize(self.te_floating.data().id, self.te_floating.data().options.min_sizeGet());
             self.te_floating.wd.rect.w = ms.w;
@@ -1357,7 +1404,7 @@ pub fn touchEditing(self: *TextLayoutWidget) !?*FloatingWidget {
             self.te_floating.wd.rect.x = r.x + r.w - self.te_floating.wd.rect.w;
             self.te_floating.wd.rect.y = r.y - self.te_floating.wd.rect.h - self.wd.options.paddingGet().y;
 
-            self.te_floating.wd.rect = dvui.placeOnScreen(dvui.windowRect(), .{ .x = self.te_floating.wd.rect.x, .y = self.te_floating.wd.rect.y }, self.te_floating.wd.rect);
+            self.te_floating.wd.rect = .cast(dvui.placeOnScreen(dvui.windowRect(), .{ .x = self.te_floating.wd.rect.x, .y = self.te_floating.wd.rect.y }, .vertical, .cast(self.te_floating.wd.rect)));
         } else {
             // need another frame to get our min size
             dvui.refresh(null, @src(), self.te_floating.wd.id);
@@ -1395,9 +1442,16 @@ pub fn data(self: *TextLayoutWidget) *WidgetData {
     return &self.wd;
 }
 
-pub fn rectFor(self: *TextLayoutWidget, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
+pub fn rectFor(self: *TextLayoutWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
-    const ret = dvui.placeIn(self.wd.contentRect().justSize(), min_size, e, g);
+
+    // For corner widgets, they might want to be closer to the border than the
+    // text, so fit them without padding, but then need to adjust origin
+    // because screenRectScale assumes we placed in the contentRect
+    var ret = dvui.placeIn(self.wd.backgroundRect().justSize(), min_size, e, g);
+    ret.x -= self.wd.options.paddingGet().x;
+    ret.y -= self.wd.options.paddingGet().y;
+
     var i: usize = undefined;
     if (g.y < 0.5) {
         if (g.x < 0.5) {
@@ -1467,13 +1521,13 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
     switch (e.evt) {
         .mouse => |me| {
             if (me.action == .focus) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 // focus so that we can receive keyboard input
                 dvui.focusWidget(self.wd.id, null, e.num);
             } else if (me.action == .press and me.button.pointer()) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 // capture and start drag
-                dvui.captureMouse(self.wd.id);
+                dvui.captureMouse(self.data());
                 dvui.dragPreStart(me.p, .{ .cursor = .ibeam });
 
                 if (me.button.touch()) {
@@ -1486,7 +1540,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                     }
                 } else {
                     // a click always sets sel_move - has the highest priority
-                    const p = self.wd.contentRectScale().pointFromScreen(me.p);
+                    const p = self.wd.contentRectScale().pointFromPhysical(me.p);
                     self.sel_move = .{ .mouse = .{ .down_pt = p } };
                     self.scroll_to_cursor = true;
 
@@ -1499,12 +1553,12 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                     }
                 }
             } else if (me.action == .release and me.button.pointer()) {
-                e.handled = true;
+                e.handle(@src(), self.data());
 
                 if (dvui.captured(self.wd.id)) {
                     if (!self.touch_editing and dvui.dragging(me.p) == null) {
                         // click without drag
-                        self.click_pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                        self.click_pt = self.wd.contentRectScale().pointFromPhysical(me.p);
 
                         self.click_num += 1;
                         if (self.click_num == 4) {
@@ -1515,7 +1569,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                     if (me.button.touch()) {
                         // this was a touch-release without drag, which transitions
                         // us between touch editing
-                        const p = self.wd.contentRectScale().pointFromScreen(me.p);
+                        const p = self.wd.contentRectScale().pointFromPhysical(me.p);
 
                         if (self.te_focus_on_touchdown) {
                             self.touch_editing = !self.touch_editing;
@@ -1549,11 +1603,11 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                 if (dvui.dragging(me.p)) |_| {
                     self.click_num = 0;
                     if (!me.button.touch()) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         if (self.sel_move == .mouse) {
-                            self.sel_move.mouse.drag_pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                            self.sel_move.mouse.drag_pt = self.wd.contentRectScale().pointFromPhysical(me.p);
                         } else if (self.sel_move == .expand_pt) {
-                            self.sel_move.expand_pt.pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                            self.sel_move.expand_pt.pt = self.wd.contentRectScale().pointFromPhysical(me.p);
                             self.sel_move.expand_pt.done = false;
                             self.sel_move.expand_pt.dragging = true;
                         }
@@ -1572,27 +1626,26 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             } else if (me.action == .motion) {
                 self.click_num = 0;
             } else if (me.action == .position) {
-                e.handled = true;
-                self.cursor_pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                self.cursor_pt = self.wd.contentRectScale().pointFromPhysical(me.p);
             }
         },
         .key => |ke| blk: {
             if (ke.action == .down and ke.matchBind("text_start_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.selection.moveCursor(0, true);
                 self.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("text_end_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.selection.moveCursor(std.math.maxInt(usize), true);
                 self.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("line_start_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .expand_pt = .{ .which = .home } };
                 }
@@ -1600,7 +1653,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if (ke.action == .down and ke.matchBind("line_end_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .expand_pt = .{ .which = .end } };
                 }
@@ -1608,7 +1661,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_left_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .word_left_right = .{} };
                 }
@@ -1619,7 +1672,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_right_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .word_left_right = .{} };
                 }
@@ -1630,7 +1683,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_left_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .char_left_right = .{} };
                 }
@@ -1641,7 +1694,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_right_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .char_left_right = .{} };
                 }
@@ -1652,7 +1705,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_up_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .cursor_updown = .{} };
                 }
@@ -1663,7 +1716,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_down_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .cursor_updown = .{} };
                 }
@@ -1674,13 +1727,13 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if (ke.action == .down and ke.matchBind("copy")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.copy();
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("select_all")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.selection.selectAll();
                 break :blk;
             }
@@ -1704,6 +1757,18 @@ pub fn deinit(self: *TextLayoutWidget) void {
             dvui.log.err("TextLayoutWidget.deinit addTextDone got {!}\n", .{err});
         };
     }
+
+    // handle mouse cursor here after all addText because some might set the cursor
+    const evts = dvui.events();
+    for (evts) |*e| {
+        if (!self.matchEvent(e))
+            continue;
+
+        if (e.evt == .mouse and e.evt.mouse.action == .position) {
+            dvui.cursorSet(.ibeam);
+        }
+    }
+
     dvui.dataSet(null, self.wd.id, "_touch_editing", self.touch_editing);
     dvui.dataSet(null, self.wd.id, "_te_first", self.te_first);
     dvui.dataSet(null, self.wd.id, "_te_show_draggables", self.te_show_draggables);
@@ -1737,9 +1802,15 @@ pub fn deinit(self: *TextLayoutWidget) void {
     // check if the widgets are taller than the text
     const left_height = (self.corners_min_size[0] orelse Size{}).h + (self.corners_min_size[2] orelse Size{}).h;
     const right_height = (self.corners_min_size[1] orelse Size{}).h + (self.corners_min_size[3] orelse Size{}).h;
-    self.wd.min_size.h = @max(self.wd.min_size.h, self.wd.options.padSize(.{ .h = @max(left_height, right_height) }).h);
+    // adjust for corner widgets not being inside textLayout's padding
+    const padded = self.wd.options.padSize(.{ .h = @max(left_height, right_height) }).padNeg(self.wd.options.paddingGet());
+    self.wd.min_size.h = @max(self.wd.min_size.h, padded.h);
 
     self.wd.minSizeSetAndRefresh();
     self.wd.minSizeReportToParent();
     dvui.parentReset(self.wd.id, self.wd.parent);
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

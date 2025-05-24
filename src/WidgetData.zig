@@ -7,6 +7,7 @@ const Rect = dvui.Rect;
 const RectScale = dvui.RectScale;
 const Size = dvui.Size;
 const Widget = dvui.Widget;
+const WidgetId = dvui.WidgetId;
 
 const WidgetData = @This();
 
@@ -15,7 +16,7 @@ pub const InitOptions = struct {
     subwindow: bool = false,
 };
 
-id: u32 = undefined,
+id: WidgetId = undefined,
 parent: Widget = undefined,
 init_options: InitOptions = undefined,
 rect: Rect = Rect{},
@@ -31,12 +32,6 @@ pub fn init(src: std.builtin.SourceLocation, init_options: InitOptions, opts: Op
 
     self.parent = dvui.parentGet();
     self.id = self.parent.extendId(src, opts.idExtra());
-
-    // for normal widgets this is fine, but subwindows have to take care to
-    // call captureMouseMaintain after subwindowCurrentSet and subwindowAdd
-    if (!init_options.subwindow) {
-        dvui.captureMouseMaintain(self.id);
-    }
 
     self.min_size = self.options.min_sizeGet();
     const ms = dvui.minSize(self.id, self.min_size);
@@ -67,10 +62,35 @@ pub fn init(src: std.builtin.SourceLocation, init_options: InitOptions, opts: Op
 pub fn register(self: *WidgetData) !void {
     self.rect_scale_cache = self.rectScale();
 
+    // for normal widgets this is fine, but subwindows have to take care to
+    // call captureMouseMaintain after subwindowCurrentSet and subwindowAdd
+    if (!self.init_options.subwindow) {
+        dvui.captureMouseMaintain(.{ .id = self.id, .rect = self.borderRectScale().r, .subwindow_id = dvui.subwindowCurrentId() });
+    }
+
     var cw = dvui.currentWindow();
     const name: []const u8 = self.options.name orelse "???";
 
-    if (cw.debug_under_focus and self.id == dvui.focusedWidgetId()) {
+    if (self.options.tag) |t| {
+        dvui.tag(t, .{ .id = self.id, .rect = self.rectScale().r, .visible = self.visible() });
+    }
+
+    cw.last_registered_id_this_frame = self.id;
+
+    const focused_widget_id = dvui.focusedWidgetId();
+    if (self.id == focused_widget_id) {
+        cw.last_focused_id_this_frame = self.id;
+    }
+
+    if (dvui.testing.widget_hasher) |*hasher| {
+        hasher.update(std.mem.asBytes(&self.init_options));
+        hasher.update(std.mem.asBytes(&self.options.hash()));
+        hasher.update(std.mem.asBytes(&self.rectScale()));
+        hasher.update(std.mem.asBytes(&self.visible()));
+        hasher.update(std.mem.asBytes(&(self.id == focused_widget_id)));
+    }
+
+    if (cw.debug_under_focus and self.id == focused_widget_id) {
         cw.debug_widget_id = self.id;
     }
 
@@ -94,11 +114,15 @@ pub fn register(self: *WidgetData) !void {
         }
 
         if (self.id == cw.debug_widget_id) {
+            if (cw.debug_widget_panic) {
+                @panic("Debug Window Panic");
+            }
+
             var min_size = Size{};
             if (dvui.minSizeGet(self.id)) |ms| {
                 min_size = ms;
             }
-            cw.debug_info_name_rect = try std.fmt.allocPrint(cw.arena(), "{x} {s}\n\n{}\nmin {}\n{}\nscale {d}\npadding {}\nborder {}\nmargin {}", .{ self.id, name, rs.r, min_size, self.options.expandGet(), rs.s, self.options.paddingGet().scale(rs.s), self.options.borderGet().scale(rs.s), self.options.marginGet().scale(rs.s) });
+            cw.debug_info_name_rect = try std.fmt.allocPrint(cw.arena(), "{x} {s}\n\n{}\nmin {}\n{}\nscale {d}\npadding {}\nborder {}\nmargin {}", .{ self.id, name, rs.r, min_size, self.options.expandGet(), rs.s, self.options.paddingGet().scale(rs.s, Rect.Physical), self.options.borderGet().scale(rs.s, Rect.Physical), self.options.marginGet().scale(rs.s, Rect.Physical) });
             const clipr = dvui.clipGet();
             // clip to whole window so we always see the outline
             dvui.clipSet(dvui.windowRectPixels());
@@ -106,13 +130,18 @@ pub fn register(self: *WidgetData) !void {
             // intersect our rect with the clip - we only want to outline
             // the visible part
             var outline_rect = rs.r.intersect(clipr);
+
+            // make sure something is visible
+            outline_rect.w = @max(outline_rect.w, 1);
+            outline_rect.h = @max(outline_rect.h, 1);
+
             if (cw.snap_to_pixels) {
                 outline_rect.x = @ceil(outline_rect.x) - 0.5;
                 outline_rect.y = @ceil(outline_rect.y) - 0.5;
             }
-            try dvui.pathAddRect(outline_rect, .{});
-            const color = dvui.themeGet().color_err;
-            try dvui.pathStrokeAfter(true, true, 1 * rs.s, .none, color);
+
+            try outline_rect.stroke(.{}, .{ .thickness = 1 * rs.s, .color = dvui.themeGet().color_err, .after = true });
+
             dvui.clipSet(clipr);
 
             cw.debug_info_src_id_extra = std.fmt.allocPrint(cw.arena(), "{s}:{d}\nid_extra {d}", .{ self.src.file, self.src.line, self.options.idExtra() }) catch "ERROR allocPrint";
@@ -129,25 +158,42 @@ pub fn borderAndBackground(self: *const WidgetData, opts: struct { fill_color: ?
         return;
     }
 
-    var bg = self.options.backgroundGet();
-    if (self.options.borderGet().nonZero()) {
-        if (!bg) {
-            dvui.log.debug("borderAndBackground {x} forcing background on to support border\n", .{self.id});
-            bg = true;
-        }
+    if (self.options.box_shadow) |bs| {
         const rs = self.borderRectScale();
-        if (!rs.r.empty()) {
-            try dvui.pathAddRect(rs.r, self.options.corner_radiusGet().scale(rs.s));
-            const col = self.options.color(.border);
-            try dvui.pathFillConvex(col);
+        const radius = bs.corner_radius orelse self.options.corner_radiusGet();
+
+        const prect = rs.r.insetAll(rs.s * bs.shrink).offsetPoint(bs.offset.scale(rs.s, dvui.Point.Physical));
+
+        try prect.fill(radius.scale(rs.s, Rect.Physical), .{ .color = bs.colorGet().opacity(bs.alpha), .blur = rs.s * bs.blur });
+    }
+
+    var bg = self.options.backgroundGet();
+    const b = self.options.borderGet();
+    if (b.nonZero()) {
+        const uniform: bool = (b.x == b.y and b.x == b.w and b.x == b.h);
+        if (!bg and uniform) {
+            // draw border as stroked path
+            const r = self.borderRect().inset(b);
+            const rs = self.rectScale().rectToRectScale(r.offsetNeg(self.rect));
+            try rs.r.stroke(self.options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .thickness = b.x * rs.s, .color = self.options.color(.border) });
+        } else {
+            // draw border as large rect with background on top
+            if (!bg) {
+                dvui.log.debug("borderAndBackground {x} forcing background on to support non-uniform border\n", .{self.id});
+                bg = true;
+            }
+
+            const rs = self.borderRectScale();
+            if (!rs.r.empty()) {
+                try rs.r.fill(self.options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .color = self.options.color(.border) });
+            }
         }
     }
 
     if (bg) {
         const rs = self.backgroundRectScale();
         if (!rs.r.empty()) {
-            try dvui.pathAddRect(rs.r, self.options.corner_radiusGet().scale(rs.s));
-            try dvui.pathFillConvex(opts.fill_color orelse self.options.color(.fill));
+            try rs.r.fill(self.options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .color = opts.fill_color orelse self.options.color(.fill) });
         }
     }
 }
@@ -156,9 +202,8 @@ pub fn focusBorder(self: *const WidgetData) !void {
     if (self.visible()) {
         const rs = self.borderRectScale();
         const thick = 2 * rs.s;
-        try dvui.pathAddRect(rs.r, self.options.corner_radiusGet().scale(rs.s));
-        const color = self.options.color(.accent);
-        try dvui.pathStrokeAfter(true, true, thick, .none, color);
+
+        try rs.r.stroke(self.options.corner_radiusGet().scale(rs.s, Rect.Physical), .{ .thickness = thick, .color = dvui.themeGet().color_accent, .after = true });
     }
 }
 
@@ -168,9 +213,7 @@ pub fn rectScale(self: *const WidgetData) RectScale {
     }
 
     if (self.init_options.subwindow) {
-        const s = dvui.windowNaturalScale();
-        const scaled = self.rect.scale(s);
-        return RectScale{ .r = scaled.offset(dvui.windowRectPixels()), .s = s };
+        return dvui.windowRectScale().rectToRectScale(self.rect);
     }
 
     return self.parent.screenRectScale(self.rect);
@@ -210,8 +253,8 @@ pub fn minSizeMax(self: *WidgetData, s: Size) void {
 pub fn minSizeSetAndRefresh(self: *WidgetData) void {
     const msContent = self.options.max_size_contentGet();
     const max_size = self.options.padSize(msContent);
-    if (msContent.w != 0) self.min_size.w = @min(self.min_size.w, max_size.w);
-    if (msContent.h != 0) self.min_size.h = @min(self.min_size.h, max_size.h);
+    self.min_size.w = @min(self.min_size.w, max_size.w);
+    self.min_size.h = @min(self.min_size.h, max_size.h);
 
     if (dvui.minSizeGet(self.id)) |ms| {
         // If the size we got was exactly our previous min size then our min size
@@ -260,4 +303,8 @@ pub fn minSizeReportToParent(self: *const WidgetData) void {
     if (self.options.rect == null) {
         self.parent.minSizeForChild(self.min_size);
     }
+}
+
+test {
+    @import("std").testing.refAllDecls(@This());
 }

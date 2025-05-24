@@ -1,82 +1,109 @@
 const std = @import("std");
 const dvui = @import("dvui");
-comptime {
-    std.debug.assert(dvui.backend_kind == .dx11);
-}
 const Backend = dvui.backend;
-
-const w = std.os.windows;
-const HINSTANCE = w.HINSTANCE;
-const LPWSTR = w.LPWSTR;
-const INT = w.INT;
+const win32 = Backend.win32;
 
 const window_icon_png = @embedFile("zig-favicon.png");
 
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
 
+const ExtraWindow = struct {
+    state: *Backend.WindowState,
+    backend: Backend.Context,
+    fn deinit(self: ExtraWindow) void {
+        self.backend.deinit();
+        gpa.destroy(self.state);
+    }
+};
+var extra_windows: std.ArrayListUnmanaged(ExtraWindow) = .{};
+
 const vsync = true;
 
 var show_dialog_outside_frame: bool = false;
 
+const window_class = win32.L("DvuiStandaloneWindow");
+
 /// This example shows how to use the dvui for a normal application:
 /// - dvui renders the whole application
 /// - render frames only when needed
-pub export fn main(
-    instance: HINSTANCE,
-    _: ?HINSTANCE,
-    _: ?LPWSTR,
-    cmd_show: INT,
-) void {
+pub fn main() !void {
     defer _ = gpa_instance.deinit();
 
+    Backend.RegisterClass(window_class, .{}) catch win32.panicWin32(
+        "RegisterClass",
+        win32.GetLastError(),
+    );
+
+    var window_state: Backend.WindowState = undefined;
+
     // init dx11 backend (creates and owns OS window)
-    var backend = Backend.initWindow(instance, cmd_show, .{
+    const first_backend = try Backend.initWindow(&window_state, .{
+        .registered_class = window_class,
+        .dvui_gpa = gpa,
         .allocator = gpa,
         .size = .{ .w = 800.0, .h = 600.0 },
         .min_size = .{ .w = 250.0, .h = 350.0 },
         .vsync = vsync,
         .title = "DVUI DX11 Standalone Example",
         .icon = window_icon_png, // can also call setIconFromFileContent()
-    }) catch return;
-    defer backend.deinit();
+    });
+    defer first_backend.deinit();
 
-    Backend.setBackend(&backend);
-
-    // init dvui Window (maps onto a single OS window)
-    var win = dvui.Window.init(@src(), gpa, backend.backend(), .{}) catch return;
-    defer win.deinit();
-
-    Backend.setWindow(&win);
-
-    main_loop: while (true) {
-        // This handles the main windows events
-        if (Backend.isExitRequested()) {
-            break :main_loop;
+    defer {
+        for (extra_windows.items) |window| {
+            window.deinit();
         }
-
-        // beginWait coordinates with waitTime below to run frames only when needed
-        const nstime = win.beginWait(backend.hasEvent());
-
-        // marks the beginning of a frame for dvui, can call dvui functions after this
-        win.begin(nstime) catch {};
-
-        // both dvui and dx11 drawing
-        gui_frame() catch {};
-
-        // marks end of dvui frame, don't call dvui functions after this
-        // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
-        _ = win.end(.{}) catch continue;
-
-        // cursor management
-        backend.setCursor(win.cursorRequested());
-
-        // Example of how to show a dialog from another thread (outside of win.begin/win.end)
-        if (show_dialog_outside_frame) {
-            show_dialog_outside_frame = false;
-            dvui.dialog(@src(), .{ .window = &win, .modal = false, .title = "Dialog from Outside", .message = "This is a non modal dialog that was created outside win.begin()/win.end(), usually from another thread." }) catch {};
-        }
+        extra_windows.deinit(gpa);
     }
+
+    const win = first_backend.getWindow();
+    while (true) switch (Backend.serviceMessageQueue()) {
+        .queue_empty => {
+            // beginWait coordinates with waitTime below to run frames only when needed
+            const nstime = win.beginWait(first_backend.hasEvent());
+
+            // marks the beginning of a frame for dvui, can call dvui functions after this
+            try win.begin(nstime);
+
+            // both dvui and dx11 drawing
+            try gui_frame();
+
+            // marks end of dvui frame, don't call dvui functions after this
+            // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
+            _ = try win.end(.{});
+
+            for (extra_windows.items) |window| {
+                try window.backend.getWindow().begin(nstime);
+                try gui_frame();
+                _ = try window.backend.getWindow().end(.{});
+            }
+
+            // cursor management
+            first_backend.setCursor(win.cursorRequested());
+
+            // Example of how to show a dialog from another thread (outside of win.begin/win.end)
+            if (show_dialog_outside_frame) {
+                show_dialog_outside_frame = false;
+                try dvui.dialog(@src(), .{}, .{ .window = win, .modal = false, .title = "Dialog from Outside", .message = "This is a non modal dialog that was created outside win.begin()/win.end(), usually from another thread." });
+            }
+        },
+        .quit => break,
+        .close_windows => {
+            if (first_backend.receivedClose())
+                break;
+            extras: while (true) {
+                const index: usize = blk: {
+                    for (extra_windows.items, 0..) |window, i| {
+                        if (window.backend.receivedClose()) break :blk i;
+                    }
+                    break :extras;
+                };
+                const window = extra_windows.swapRemove(index);
+                window.deinit();
+            }
+        },
+    };
 }
 
 fn gui_frame() !void {
@@ -85,7 +112,7 @@ fn gui_frame() !void {
         defer m.deinit();
 
         if (try dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), dvui.Rect.fromPoint(dvui.Point{ .x = r.x, .y = r.y + r.h }), .{});
+            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
             defer fw.deinit();
 
             if (try dvui.menuItemLabel(@src(), "Close Menu", .{}, .{}) != null) {
@@ -94,7 +121,7 @@ fn gui_frame() !void {
         }
 
         if (try dvui.menuItemLabel(@src(), "Edit", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), dvui.Rect.fromPoint(dvui.Point{ .x = r.x, .y = r.y + r.h }), .{});
+            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
             defer fw.deinit();
             _ = try dvui.menuItemLabel(@src(), "Dummy", .{}, .{ .expand = .horizontal });
             _ = try dvui.menuItemLabel(@src(), "Dummy Long", .{}, .{ .expand = .horizontal });
@@ -102,7 +129,7 @@ fn gui_frame() !void {
         }
     }
 
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .{ .name = .fill_window } });
+    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
     defer scroll.deinit();
 
     var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
@@ -155,6 +182,26 @@ fn gui_frame() !void {
 
     if (try dvui.button(@src(), "Show Dialog From\nOutside Frame", .{}, .{})) {
         show_dialog_outside_frame = true;
+    }
+
+    if (try dvui.button(@src(), "Spawn Another OS window", .{}, .{})) {
+        try extra_windows.ensureUnusedCapacity(gpa, 1);
+        const state = try gpa.create(Backend.WindowState);
+        errdefer gpa.destroy(state);
+        const backend = try Backend.initWindow(state, .{
+            .registered_class = window_class,
+            .dvui_gpa = gpa,
+            .allocator = gpa,
+            .size = .{ .w = 800.0, .h = 600.0 },
+            .min_size = .{ .w = 250.0, .h = 350.0 },
+            .vsync = vsync,
+            .title = "DVUI DX11 Standalone Example",
+            .icon = window_icon_png, // can also call setIconFromFileContent()
+        });
+        extra_windows.appendAssumeCapacity(.{
+            .state = state,
+            .backend = backend,
+        });
     }
 
     // look at demo() for examples of dvui widgets, shows in a floating window
